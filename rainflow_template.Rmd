@@ -1,0 +1,771 @@
+---
+title: Fitness for Service
+author: RSI Pipeline Solutions
+date: "`r format(Sys.time(), '%B %d, %Y')`" 
+output: 
+  html_document:
+    theme: journal
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Station XXX FFS {.tabset .tabset-fade .tabset-pills}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+## Fatigue Analysis
+
+### Pressure History
+
+This pressure history shows the daily minimum and maximum pressure for
+one year. For the fatigue analysis, hourly data is used to count cycles.
+This plot is interactive, you can zoom or pan using the sliders at the
+bottom and double click anywhere on the plot to zoom out to full scale.
+
+```{r pressure , fig.width=9}
+library(rainflow)
+library(tidyverse)
+library(dygraphs)
+library(lubridate)
+library(xts)
+library(patchwork)
+
+theme_set(theme_bw(14,"serif"))
+
+## Basic Imputs ------------------------------
+
+D <- 24 #Diameter
+t <- 0.375 #Wall thickness
+#logC <- 10.0851 #material toughness - constant
+m <- 3.0 #slope of equation (assumed to be 3.0 for steel)
+Y <- 1.12 #Constant shape factor
+C <- 8.61e-10 #fatigue constant per API 579
+sigy = 46 #ksi SMYS of steel
+K_1C <- 40 #ksi * in^1/2
+K_th <- 1.8 #ksi * in^1/2 :threshold for crack growth
+
+
+## Read SCADA ----------------------------------------
+
+scada <- readr::read_csv("BRM10.csv", na = "<null>") %>%
+  janitor::clean_names() %>% 
+  mutate(date = mdy(date))
+
+
+scada <- scada %>% mutate(date_time = ymd_hms(paste(scada$date, scada$time)))
+
+namedf <- names(scada)
+
+
+scada <- scada %>%
+  rename("Pressure" = namedf[3]) %>%
+  filter(Pressure > 0)
+# scada$date_time = ymd_hms(paste(scada$Date, scada$Time))
+
+
+scada <- scada %>%
+  select(date, time, date_time, Pressure) %>%
+  # mutate(Pressure = abs(as.numeric(Pressure))) %>%
+  tidyr::drop_na() %>% #drop missing values
+  unique() #remove any duplicates 
+
+
+
+# Calc daily min/max
+scadasum <- scada %>%
+  group_by(date) %>%
+  summarise(min = min(abs(Pressure)),
+            max = max(abs(Pressure))) 
+  
+
+scadasum_ts <- xts(scadasum,order.by = scadasum$date)
+
+dygraph(scadasum_ts[, 2:3],
+        main = "One Year Pressure History") %>%
+  dyRangeSelector(height = 20) %>%
+  dyAxis("y", label = "Pressure (psi)")
+
+```
+
+### Pressure History Histogram
+
+The following two histograms show the actual pressure readings for one
+year. The first one is the individual pressure recordings with a Gumbel
+distribution fit to the data and the second one is the pressure changes
+between SCADA readings.
+
+```{r histo}
+scada <- scada %>% 
+  mutate(delta_p=Pressure-lag(Pressure,1))
+# Calc delta P = p_(i) - P_(i-1)
+
+
+scada %>%
+  ggplot(aes(abs(delta_p))) +
+  geom_histogram(fill = 'coral', col = 'black') +
+  scale_x_log10() +
+  labs(title = "Hourly Pressure Change Count for One Year",
+       x = expression(Delta ~ "P (psi) - log scale"),
+       y = "Pressure Change Count") +
+  theme_bw(14, "serif")
+
+# scada_fil <- scada %>% 
+  # filter(Pressure>50) 
+  
+# gumfit <- ismev::gum.fit(scada$Pressure[scada$Pressure>50])
+gumfit <- evd::fgev(scada$Pressure[scada$Pressure>75])
+
+scada %>%
+  ggplot(aes(abs(Pressure))) +
+  geom_histogram(aes(y = ..density..),
+                 fill = 'royalblue',
+                 col = 'black',
+                 bins = 60) +
+  stat_function(
+    fun = evd::dgev,
+    args = list(gumfit$estimate[1],
+                gumfit$estimate[2],
+                gumfit$estimate[3]),
+    col = 'red',
+    lwd = 1
+  ) +
+  xlim(0, 400) +
+  labs(title = "One Year Pressure History",
+       x = "Pressure (psig)",
+       y = "Density")
+```
+
+### Cycle Peaks
+
+This plot will show the actual pressure cycle peaks from a rainflow
+cycle count algorithm with the minimum and maximum peak labeled. Note
+that not every change in pressure is considered a cycle. This plot is
+interactive and can zoomed or panned using the sliders at the bottom or
+selecting an area of interest. Double-clicking in the plot will return
+it to full scale.
+
+```{r cpeaks, echo=FALSE, fig.width=9}
+
+#find peaks, R = ratio of previous pressure to be considered a peak, 
+#smaller numbers = more peaks
+scada_fil <- scada %>% filter(delta_p>0) 
+
+peaker <- FindPeaks(scada_fil$Pressure, smooth = F, R = 1.05) #R = 1.05 = 5% change for a peak
+
+peaks <- tibble(peaks=peaker$peaks)
+dater <- scada$date_time[peaker$indices] #grab date and time of peaks
+
+
+pk <- tibble(dater,peaks=peaker$peaks) #combine into one dataframe
+minmax <- pk %>% summarise(min=min(peaks), max=max(peaks))
+min <- filter(pk,peaks==minmax$min )
+minlabel <- paste("min =", min$peaks)
+
+max <- filter(pk,peaks==minmax$max )
+maxlabel <- paste("max =", max$peaks)
+
+pk <- xts(pk, order.by=pk$dater) #Convert into a time series for dygraph to use
+
+dygraph(pk,
+        main = "Pressure Cycle Peaks",
+        xlab = "Date") %>%
+  dyRangeSelector(height = 20) %>%
+  dyCrosshair() %>%
+  # dyLegend(show = "never") %>% 
+  dyAnnotation(min$dater, text = "m", tooltip = minlabel) %>%
+  dyAnnotation(max$dater, text = "M", tooltip = maxlabel) %>% 
+  dyAxis("y", label ="Pressure (psi)")
+```
+
+### Cycle Peak Histogram
+
+This is a histogram of actual cycle amplitudes. This is different from
+pressure change histogram since not every change in pressure is a cycle.
+The amplitude of the cycle is the change relative to the mean pressure
+of the cycle, therefore the total pressure change from minimum to
+maximum of the cycle is twice the amplitude. After the cycles are
+counted, the Miner's Rule is applied. The Miner's Rule indicates that
+cumulative damage at each stress cycle is the ratio of the number of
+cycles at that stress to the total number of cycles to failure at that
+stress. Then this is repeated for each stress cycle magnitude and then
+the individual fractional damages are summed to find the total damage
+over that time period.
+
+$$\sum_{i=1}^k \frac{n_i\times S_i}{N_i \times S_i}=C$$
+
+```{r amplitude}
+cyclecount <- CountCycles(peaker) #After finding peaks, count the cycles and tabulate
+
+cyclecount %>%
+  ggplot(aes(amplitude)) +
+  geom_histogram(fill = 'red3',
+                 col = 'black') +
+  scale_x_log10()+
+  labs(title = "Peak Cycle Histogram",
+    x="Amplitude (psig) - log scale")
+```
+
+### Miner's Rule
+
+After applying the miner's rule to count the number of cycles, the
+results are tabulated here. This table can be searched for a value,
+sorted on any column or extended to show more rows at once.
+
+```{r miners}
+cyclecount %>% select(-cycles) %>% DT::datatable()
+
+```
+
+### Summary Table of Cycles
+
+```{r miners summary}
+
+cyclecount %>%
+  select(-cycles) %>%
+  rename( mean_cycle_pressure = mean) %>%
+  mutate(delta_stress = amplitude*D/(2*t)) %>% 
+  dlookr::describe() %>%
+  select(variable:IQR,
+         p00,
+         p25,
+         p75,
+         p100,
+         -n,
+         -na,
+         -se_mean) %>%
+  mutate(across(.cols = -variable,  ~ round(.x, 1))) %>%
+  flextable::flextable()
+
+```
+
+### Fatigue Life
+
+This part will take the cycle count and stress magnitude to determine
+the individual damage per cycle and sum up the total damage per year to
+arrive at an expected fatigue life. This is based off the Paris Crack
+growth law which takes the form of:
+
+$$ \frac{da}{dN}=C(\Delta K)^m$$
+
+Where:
+
+$\frac{da}{dN}$ = the differential growth in the crack per cycle C =
+Material parameter for crack growth m = Material Constant: typically
+assumed to be 3.0 for low alloy steels $\Delta K$ = The change in
+elastic crack driving force parameter caused by the change in stress,
+where: $K = Y\sigma \sqrt{\pi a}$:\
+Y = Crack geometry factor, for small elliptical flaws Y = 1.12 $\sigma$
+= Hoop stress
+
+Putting this all together you get the differential equation
+
+$$\frac{da}{dN}=C(Y \sigma \sqrt{\pi a})^m$$ Then this equation is
+solved for each stress cycle to determine the number of cycles to
+failure for that stress magnitude. Then the number cycles at that stress
+level are divided by the number of cycles to failure to arrive at a
+fractional life that is consumed for that stress bin.
+
+```{r pipe properties}
+
+ai <-  0.05 * t 
+#assume 10% initial flaw, smaller initial flaws give larger cycles to failure
+
+
+cyclecount <- tibble(cyclecount) %>%
+  mutate(
+    delta_s = D / (2 * t) * cyclecount$amplitude*2 /1000#,
+    #divide by 1000: units are in ksi
+  )
+
+af=1/pi*(K_1C/(Y*max(cyclecount$delta_s)))^2
+
+histo <- ggplot(cyclecount, aes(delta_s))+geom_histogram(bins=45)
+histdat <- ggplot_build(histo)$data[[1]]
+
+histdf <- tibble(mid=histdat$x, count=histdat$count)
+histdf <- histdf %>% mutate(Nf = 1/(C*Y^m*mid^m*pi^(m/2))*(af^(1-m/2)-ai^(1-m/2))/(1-m/2),fraclife=count/Nf)
+
+
+diff <- max(scada$date)-min(scada$date)
+frac <- sum(histdf$fraclife)
+
+yrfrac <- (diff[[1]]/365) #fractional life used each year
+
+life <- round(yrfrac/frac,0) #total years at that rate
+lifetxt <- paste("Total fatigue life =",format(life,big.mark = ","), "years")
+```
+
+`r paste("Diameter =",D)`\
+`r paste("Wall Thickness =", t)`\
+`r paste("Initial Crack Depth =", ai)`\
+`r paste("SMYS =", sigy, "ksi")`\
+`r paste("Total cycles per year =", nrow(cyclecount))`\
+`r paste("Fractional fatigue life consumed each year =",round(frac,8))`\
+`r lifetxt`\
+
+### Assumptions
+
+This analysis is based on the Paris Crack Growth Law and the Miner's
+Rule which states that there are $p$ different stress levels and the
+predicted number of cycles to failure at the i*th* stress, $S_i$, is
+$N_{fi}$. The number of cycles at stress $S_i$, is $n_i$. The ratio of n
+to N is the damage fraction, the amount of life that is used up by
+stress $S_i$. When the sum of damage fractions are greater than 1.0,
+failure is said to occur. For example if it would take 100,000 cycles to
+fail a given line at certain stress level and it experienced 5,000 of
+them it would be said that the pipeline had consumed 5% of its fatigue
+life.
+
+If an actual initial crack size is unknown then a depth equal to 5% of
+the nominal wall thickness is assumed.
+
+Total fatigue life assumes that the data analyzed is representative of
+the operating history of the pipeline. When the predicted fatigue life
+extends past several hundred years, it is an indication that the current
+pressure cycle regime is likely not aggressive enough to exceed the
+threshold for crack growth absent some sort of stress intensifier such
+as an impingement or geometry discontinuity.
+
+## B31G Monte Carlo
+
+### Uncertainty and what is left behind
+
+In a pipeline assessment there are multiple layers of uncertainty. The
+concern is not what I have remediated but the "next" defect. The most
+severe defect that you decided not to remediate. There is no such thing
+as a perfect measurement no matter how precise it is. Even it was known
+with very high precision the probable error of the ILI tool and
+accounted for it in my decision, you are still left with uncertainty in
+SMYS, wall thickness, length to name a few. Even if you had records to
+prove what the specified wall thickness is. That only tells you what it
+was from the pipe mill it doesn't account for corrosion or tolerances in
+manufacturing. So the question that is begged is what can be done. The
+easiest, though not necessarily conservative, answer would be take an
+average of the values. This may not reflect reality. You could assume
+they are all at the minimum values. This is certainty conservative but
+inadvertently raises risk elsewhere.
+
+### Monte Carlo Background
+
+Monte Carlo simulations work on the principal of the Law of Large
+Numbers. This theorem states that the average of a large numbers of
+trials will converge on the true expected value and as the number of
+trials increases.
+
+### Inputs
+
+This simulation takes in the nominal wall thickness and diameter and
+applies API 5L tolerances to them. Then the Specified Minimum Yield
+Strength (SMYS), Maximum Allowable Operating Pressure along with the
+actual operating pressure and their uncertainties are used to create
+stochastic variables for simulation purposes.
+
+```{r background,warning=FALSE,message=FALSE}
+
+n = 2e4 #NUmber of sims
+## pipe specs ------------------------------------
+D = 24 #Actual Diameter not nominal
+th = 0.375 #nominal wall thickness
+SMYS = 46000 #Specified Minimum Yield Strength
+
+#### Pressures ----------------------------------
+MAOP = 1150 # pipeline MAOP
+sp = 50 #std.dev. on operating pressure
+mu_p = 1000 #average operating pressure
+RAI = 7 #Reassessment Interval in years
+
+## Depth Inputs ##-----------------------------------
+dp = 0.50  # percent of depth of defect (%)
+d_sd <- 0.09 # percent std. deviation for tool depth error
+# Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust
+# based on validation digs
+dc_M = 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
+dc_S = 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
+
+## Length Inputs -----------------------------------
+L = 3.0  # Reported Length of defect (in.)
+L_S = 0.3  # Std. Deviation for Length of defect (in.)
+Lc_M = 0.005  # mean corrosion rate in the Length direction, in./yr. - NOT MPY
+Lc_S = 0.001  # std. deviation for length corrosion rate, in./yr. - NOT MPY
+
+op <- rnorm(mean = mu_p, sd = sp, n = n)
+
+opdf = tibble(op)
+
+# summary(opdf)
+
+opdf %>%
+  rename(Op_Pressure = op) %>%
+  dlookr::describe() %>%
+  select(variable:IQR,
+         p00,
+         p25,
+         p75,
+         p100,
+         -n,
+         -na,
+         -se_mean) %>%
+  mutate(across(.cols = -variable,  ~ round(.x, 1))) %>%
+  flextable::flextable() %>% 
+  flextable::set_caption("Operating Pressure Distribution")
+  
+
+opp_hist <- ggplot(opdf, aes(op)) +
+  geom_histogram(bins = 60,
+                 fill = 'steelblue2',
+                 col = 'black') +
+  labs(title = "Operating Pressure Histogram",
+       x = "Operating Pressure (psig)") +
+  annotate("text",
+           label = paste("MAOP\n", MAOP, "psig"),
+           x = 0.70*MAOP,
+           y = n/30) 
+
+```
+
+### Reported Information
+
+`r paste("Diameter =",D,"in")`\
+`r paste("Nominal Wall Thickness =",th,"in")`\
+`r paste("SMYS =",SMYS,"psi")` `r paste("MAOP =",MAOP, "psi")`\
+`r paste("Reported Anomaly Depth =",dp*100,"%")`\
+`r paste("Reported Anomaly Length =",L,"in")`\
+`r paste("Reassessment Interval", RAI, "yrs.")`\
+
+### Uncertainty in Depth
+
+Uncertainty in the depth at the end of the reassessment interval based
+on called depth and uncertainty in corrosion rate.
+
+```{r depth, warning=FALSE,message=FALSE,fig.height=4,fig.width=6.5}
+##### uncertainty in wall thickness based on API 5L tolerances #####
+
+t_S <- ifelse(th <= 0.197,
+       0.02 / 2,
+       ifelse(0.197 < th &  th < 0.591,
+              (0.1 * th) / 2, 0.06 / 2))# This assumes that 5L max tolerances =2 Sigma
+
+tv = rlnorm(n,log(0.975*th), t_S) #take 2.5% off nominal wall for distribution
+tvv=as.data.frame(tv)
+
+
+### Defect parameters and uncertainty####
+
+
+d = dp * tv  # depth of remaining defect (in.)
+d_S = d_sd * tv  # Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust based on validation digs
+
+# variable depth based on uncertainty of corrosion rate and tool call
+dv = rnorm(n,d, d_S) + rnorm(n,dc_M, dc_S) * RAI
+
+dvv=as.data.frame(dv)
+
+dp_hist <- ggplot(dvv, aes(dv)) +
+  geom_histogram(bins = 60,
+                 fill = 'firebrick2',
+                 col = 'black') +
+  labs(title = "Anomaly Depth Histogram",
+       x = "Depth (inches)",
+       caption = "At the end of the reassessment interval")
+
+opp_hist / dp_hist
+
+
+```
+
+### Uncertainty in Length
+
+Uncertainty in anomaly length based on called length, corrosion rate,
+and reassessment interval.
+
+```{r length,warning=FALSE,message=FALSE,fig.height=3.5,fig.width=5}
+#### Length Corrosion Parameters #####
+
+# current length + future corrosion x2 because the length growths in both directions
+Lv = rnorm(n,L, L_S) + rnorm(n,Lc_M, Lc_S) * 2 * RAI
+
+Lvv <- as.data.frame(Lv)
+
+msg <- paste("Called length =\n",L,"in.")
+
+ggplot(Lvv, aes(Lv)) +
+  geom_histogram(bins = 60,
+                 fill = 'cyan3',
+                 col = 'black') +
+  labs(title = "Anomaly Length Histogram",
+       x = "Length (inches)") +
+  annotate("text",
+           label = msg,
+           x = L/1.25,
+           y = n/20) +
+  theme_bw()
+
+```
+
+### Uncertainty in Pipe Properties
+
+Uncertainty in various dimensions based on API5L tolerances and assumed
+distribution of actual yield stresses based on SMYS.
+
+```{r SMYS and Diameter,warning=FALSE,message=FALSE,fig.height=4,fig.width=6.5,dpi=400}
+##### Uncertainty in Diameter based on API 5L tolerances #####
+D_S <- ifelse(6.625 < D & D <= 24, #currently only set up for > 6 inch
+              min(0.0075 * D, 0.125) / 2,  
+              min(D * 0.005, 0.16) / 2)  # This assumes that 5L max tolerances =2 Sigma
+    
+Dv = rnorm(n, D, D_S)
+
+
+# variable thickness based on API 5L tolerances, this variability may need to
+# be increased based on validation digs from pig run
+# Actual yield is typically above SMYS:
+
+# Studies indicate SMYS and UTS is lognormal distributed.
+# Actual yield is known to follow a lognormal distribution relative to SMYS (COV ~ 3.5%)
+# The lognorm location is a shift in the mean.
+###SMYS ####
+# SMYS of pipe (psi)
+LS = log(1.05 * SMYS)  # Mean YS is going to be slightly above SMYS typically
+
+
+# Need to make SD very small or it will skew very heavily
+SMYSv = rlnorm(n,LS, 0.02)
+
+# SMYSv <- evd::rgev(n = n,loc = 1.14917, scale = 0.13797, shape = 0.02298)*SMYS
+
+SMYSvv=tibble(SMYSv)
+msg2=paste("SMYS =", SMYS,"psi")
+
+smshist = ggplot(SMYSvv, aes(SMYSv)) +
+  geom_histogram(bins = 60,
+                 fill = 'violetred2',
+                 col = 'black') +
+  labs(title = "SMYS Histogram",
+       x = "SMYS (psi)") +
+  annotate("text",
+           label = msg2,
+           x = 1.1*SMYS,
+           y = n/20) +
+  theme_bw()
+
+msg3=paste("Wall Thickness =",th,"in.")
+
+wallhist = ggplot(tvv, aes(tv)) +
+  geom_histogram(bins = 60,
+                 fill = 'slateblue',
+                 col = 'black') +
+  labs(title = "Wall Thickness Histogram",
+       x = "wall (in.)") +
+  annotate("text",
+           label = msg3,
+           x = th+0.01,
+           y = n/20) +
+  theme_bw()
+
+smshist/wallhist
+
+```
+
+### Probability of Failure
+
+With all the uncertainties accounted for by stochastic variables a
+probability of exceeding the failure pressure is calculated for each
+simulation.
+
+```{r PoF,warning=FALSE,message=FALSE,fig.height=4,fig.width=6,dpi=450}
+####Uncertainty in Modified B31G Formula####
+
+# Formula is conservative most of the time, the mean and SD were taken as an
+# average of two studies The Advantica Report 3781 and PDAM
+# Advantica: 1.06/0.118
+# PDAM: 1.01/0.13 for 3 factor folias and SMYS + 10ksi
+# One study indicated that Pa/Pf followed a generalized extreme value distribution
+# but not much difference between that and a normal for the parameters given.
+# Changed distribution to gamma due to extreme values either side of mean for
+# normal and lognormal.  These parameters agree with min/max stated by kiefner
+# in studies of MB31G.  Set location to 0.94 to agree with Kiefner study.
+
+BF_M = 1.06
+BF_S = 0.118
+
+# Changed from lognorm to norm with small SD, tails too extreme on lognorm.
+BF = rnorm(n,BF_M, BF_S) #adjustment for accuracy of B31G 
+
+#Folias Factor
+M <- ifelse(Lv ^ 2 / (Dv * tv) <= 50,
+            sqrt(1 + 0.6275 * (Lv / sqrt(Dv * tv)) ^ 2 -
+                   0.003375 *
+                   (Lv / sqrt(Dv * tv)) ^ 4),
+            0.032 * (Lv / sqrt(Dv * tv)) ^ 2 +
+              3.3)  # Folias Factor
+
+SB31G = (SMYSv + 10000) *
+  ((1 - 0.85 * dv / tv) /
+     (1 - 0.85 * dv / tv / M)) * BF
+
+P31 = 2 * SB31G * tv / Dv
+
+# rm(B31df) #clear out old DF
+
+GLR=ifelse(SB31G>SMYSv,"G",ifelse(SB31G/SMYSv<(1.1/M),"L","R")) #Good, Leak or Rupture count
+
+B31df <- tibble(tv,dv,Dv,Lv,M,SB31G,P31,op,GLR)
+opp= B31df %>% pivot_longer(cols = P31:op)
+
+dlookr::describe(B31df) %>%
+  select(variable:IQR,
+         p00,
+         p25,
+         p75,
+         p100,
+         -n,
+         -na,
+         -se_mean) %>%
+  mutate(
+    across(.cols = -variable,  ~ round(.x, 3)),
+    variable = c(
+      "t",
+      "depth",
+      "Diameter",
+      "Length",
+      "Folias",
+      "B31G Stress",
+      "B31G Pressure",
+      "Operating Pressure"
+    )
+  ) %>%
+  flextable::flextable()
+
+meanp=round(mean(P31),0)
+sdp=round(sd(P31),0)
+txt1=paste("mu ==",meanp)
+txt2=paste("sigma== ",sdp)
+
+P31hist = ggplot(B31df) +
+  geom_histogram(
+    aes(P31, y = ..density..),
+    fill = 'lightblue',
+    col = 'black',
+    bins = 50
+  ) +
+  theme_bw() +
+  stat_function(
+    fun = dnorm,
+    args = list(mean(P31), sd(P31)),
+    col = 'red',
+    lwd = 1
+  ) +
+  annotate(
+    "text",
+    x = 0.7 * mean(P31),
+    y = .0015,
+    label = txt1,
+    parse = TRUE,
+    size = 4
+  ) +
+  annotate(
+    "text",
+    x = 0.7 * mean(P31),
+    y = .0010,
+    label = txt2,
+    parse = TRUE,
+    size = 4
+  ) +
+  labs(title = "Modified B31G Failure Pressure (psig)",
+       x = "Pressure (psig)",
+       y = NULL) +
+  xlim(MAOP/1.5,NA)
+
+#mu_p is the mean operaitn pressure
+#meanp is the mean failure pressure
+#### Find Intersection #####
+# f1= function(x) 1/(sp*sqrt(2*pi))*exp(-1/2*((x-mu_p)/sp)^2)
+f1 <- function(x) dnorm(x,mu_p, sp)
+#curve(f1, from=500, to= 1600,n = 201)
+# f2= function(x) 1/(sdp*sqrt(2*pi))*exp(-1/2*((x-meanp)/sdp)^2)
+f2 = function(x) dnorm(x, meanp, sdp)
+#curve(f2,col='red', add=T,n=201)
+rt = uniroot(function(x)
+  f1(x) - f2(x), c(1000, 1500))$root
+
+PoF=pnorm(q = rt,meanp,sdp)+(1-pnorm(rt,mu_p,sp))
+
+
+
+txt <- "PoF ="
+
+opphist = ggplot(opp) +
+  geom_density(aes(value, fill = name), 
+               alpha = 0.6) +
+  theme_bw() +
+  scale_fill_manual(
+    values = c('red1', 'steelblue2'),
+    labels=c("Operating", "B31G"),
+    name = "Pressures"
+  ) +
+  theme(legend.position = c(0.9, 0.6),
+        axis.text.y = element_blank()) +
+  geom_point(aes(x = rt, y = dnorm(rt, mu_p, sp)),
+             size = 2,
+             col =  "black") +
+  labs(title = "Modified B31G and Operating Pressure Density",
+       x = "Pressure (psig)",
+       y = NULL) +
+  annotate(
+    x = rt+200,
+    y = dnorm(rt, mu_p, sp) + .004,
+    geom = "text",
+    label = paste(txt, round(PoF, 3)),
+    size = 4
+  ) +
+  scale_x_continuous(limits = c(MAOP/1.5, 1800))
+
+P31hist/opphist
+
+```
+
+### Predicted Failure Depth
+
+This plot indicates the most likely predicted failure pressure and depth
+combinations based on the reported depth and the known properties of the
+pipeline using the Modified B31G Equations for failure pressure. The
+horizontal line represents MAOP. It can be seen that the depth would
+have to probably exceed 70% before the anomaly would fail at MAOP and
+that a small number of simulations predicted it being that deep. The
+majority of the simulations predicted the failure pressure around 1400
+psig with a depth of approximately 65% of nominal wall thickness.
+
+```{r fancy stuff ,warning=FALSE,message=FALSE,fig.height=4,fig.width=6,dpi=450}
+####Heat Map of failure pressure vs depth ####
+ggplot(B31df, aes(dv/th, P31)) +
+  stat_density_2d(aes(fill = ..level.., alpha = ..level..),
+                  col = 'black',
+                  geom = "polygon") +
+  scale_fill_gradient(low = "#9AFF9A", high = "firebrick3") +
+  theme_bw() +
+  theme(legend.position = "none",
+        plot.margin = margin(0.5, 0.5, 0.5, 0.5, "cm")) +
+  labs(title = "Failure Pressure vs. Anomaly Depth",
+       x = "Depth (%)",
+       y = "Predicted Failure Pressure (psig)")+
+  ylim(MAOP-200, NA)+
+  geom_hline(yintercept = MAOP, 
+             col='royalblue',
+             lty=2, 
+             lwd=0.80)+
+  annotate("text",
+           label="MAOP",
+           x=dp *1.025, 
+           y= MAOP, 
+           vjust=-0.7,
+           size=5)
+
+
+```
+  
+## CorLas
