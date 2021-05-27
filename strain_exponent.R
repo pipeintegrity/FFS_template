@@ -22,32 +22,38 @@ tensile <-
   summarise(
     ys = mean(ys, na.rm = T),
     uts = mean(uts, na.rm = T),
-    n = mean(n, na.rm = T)
+    n = mean(n, na.rm = T),
+    .groups = "drop"
   ) %>%
   select(group, feature, ys, uts, n) %>%
   drop_na() %>%
-  mutate(ys_uts = ys/uts)
+  mutate(ys_uts = ys / uts)
 
 comp <- read_excel(path = "C:\\Users\\Joel\\OneDrive - RSI Pipeline Solutions\\PGE\\charpy\\MasterDB-SQL-2020-09-24.xlsx",
                    sheet = "Composition") %>%
   janitor::clean_names() %>%
   mutate(across(fe:pb, as.numeric)) %>%
   group_by(group, feature) %>%
-  summarise(c = mean(c, na.rm = T), mn = mean(mn, na.rm=T))
+  summarise(c = mean(c, na.rm = T), mn = mean(mn, na.rm=T), .groups = "drop")
 
 join <- left_join(tensile, comp, by=c("group", "feature"))
 
 tensile %>%
-  ggplot(aes(ys / uts, n)) +
+  ggplot(aes(uts, ys)) +
   geom_point(col = 'orangered', alpha = 0.5) +
   geom_smooth(method = "lm", se = F) +
   theme_minimal(14, "serif") +
   labs(title = "Strain Hardening Exponent to YS/UTS",
-       x = "YS/UTS")
+       x = "YS/UTS")+
+  scale_x_log10()+scale_y_log10()
+
+uts_ys_mod <- lm(uts ~ ys, tensile)
+summary(uts_ys_mod)
+
 
 n_mod <- lm(n ~ ys/uts, data = tensile)
 
-n_mod2 <- lm(n ~ ys+uts, data = tensile)
+n_mod2 <- lm(n ~ ys + luts, data = tensile)
 
 n_mod3 <- lm(n ~ ys_uts, data = tensile)
 
@@ -145,6 +151,7 @@ lm_model <-
 ## Doesn't change the R^2 but more consistent grade predictions later on
 n_rec <- recipe(n ~ ys_uts ,
                       data = tensile) %>%
+  # step_log(all_predictors()) %>%
   step_center(all_predictors()) %>%
   step_scale(all_predictors()) %>%
   # step_interact(terms = ~ mn:c) %>%
@@ -190,14 +197,17 @@ aug %>%
               lwd = 0.8,
               se=F)+
   coord_obs_pred()+
-  geom_abline(col='grey50', lty=2)
+  geom_abline(col='grey50', lty=2)+
+  labs(title = "Linear Model and IPC Paper correlations for n",
+       x = "Predicted n",
+       y =" Observed n")
 
 
 
 tidy(fit_n)
 
 aug %>%
-  ggplot(aes(.pred, n)) +
+  ggplot(aes(lm_model, n)) +
   geom_point(alpha = 0.6, col = 'sienna1') +
   # geom_smooth(method = "lm", se = F) +
   labs(title = "Observed to Predicted Strain Hardening Exponent (n)",
@@ -217,7 +227,7 @@ aug %>%
 
 # Corlas Functions --------------------------------------------------------
 
-E =30e3 # Youngs Modulus (ksi)
+E =30e3 # Young's Modulus (ksi)
 
 sig_y <- 43.4 # ksi - YS
 sig_u <- 65 # ksi - UTS

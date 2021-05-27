@@ -37,7 +37,7 @@ library(patchwork)
 
 theme_set(theme_bw(14,"serif"))
 
-## Basic Imputs ------------------------------
+## Basic Inputs -----------------------------------------------------------
 
 D <- 24 #Diameter
 t <- 0.375 #Wall thickness
@@ -45,12 +45,106 @@ t <- 0.375 #Wall thickness
 m <- 3.0 #slope of equation (assumed to be 3.0 for steel)
 Y <- 1.12 #Constant shape factor
 C <- 8.61e-10 #fatigue constant per API 579
-sigy = 46 #ksi SMYS of steel
+sigy = 46 #ksi YS of steel
 K_1C <- 40 #ksi * in^1/2
 K_th <- 1.8 #ksi * in^1/2 :threshold for crack growth
 
+## CorLas Parameters ------------------------------------------------------
 
-## Read SCADA ----------------------------------------
+E =30e3 # Young's Modulus (ksi)
+
+# sigy # ksi - YS
+sig_u <- 1.49 * sigy # ksi - UTS
+# UTS ~ 1.49* YS on average if unknown
+
+n_sh <- 0.537 - 0.526 * sigy / sig_u
+# fit equation to strain hardening data
+# Do not use the equation given in the paper,
+# horrible fit to data and only based on 4 data points
+
+R <- D/2 # Radius (in.)
+
+# n <- 0.167 # from testing data if available
+
+a <- 0.10 # crack depth (in.)
+
+Lc <- 15 # crack length (in.)
+
+# a/Lc # depth/Length ratio
+
+c_l <- Lc/2 # c = 1/2 * L (in.)
+#renamed to avoid confusion with fatigue constant C
+
+at <- a/t # depth to wt ratio
+
+# Charpy Data ------------------------------
+
+CVN_ss <- 15 #Sub Size Charpy Energy (Ft-lbs)
+
+t_ss <- 6.67 # Sub size charpy thickness in mm
+t_fs <- 0.394 # Full size charpy in inches
+SA_ss <- 0.99 # Shear area in decimal percent
+
+
+CVN_us_ss <- CVN_ss / (0.9 * SA_ss + 0.1) # CVN upper shelf sub size (ft-lbs)
+
+CVN_us_fs <- CVN_us_ss * (t_fs / (t_ss / 25.4)) # CVN upper shelf full size (ft-lbs)
+# convert t_ss from mm to inches
+
+## Corrosion Data -------------------------------------------------
+
+n = 1e4 #NUmber of sims for Monte Carlo
+## pipe specs ----------------------
+
+th = t #nominal wall thickness
+SMYS = sigy*1000 #n = 1e4 #NUmber of sims
+## pipe specs ------------------------------------
+
+th = t #nominal wall thickness
+SMYS = sigy*1000 #Specified Minimum Yield Strength - convert to psi
+
+#### Pressures ----------------------------------
+MAOP = 1150 # pipeline MAOP
+sp = 50 #std.dev. on operating pressure
+mu_p = 1000 #average operating pressure
+RAI = 7 #Reassessment Interval in years
+
+## Depth Inputs ##-----------------------------------
+dp = 0.50  # percent of depth of defect (%)
+d_sd <- 0.09 # percent std. deviation for tool depth error
+# Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust
+# based on validation digs
+dc_M = 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
+dc_S = 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
+
+## Length Inputs -----------------------------------
+L = 3.0  # Reported Length of defect (in.)
+L_S = 0.3  # Std. Deviation for Length of defect (in.)
+Lc_M = 0.005  # mean corrosion rate in the Length direction, in./yr. - NOT MPY
+Lc_S = 0.001  # std. deviation for length corrosion rate, in./yr. - NOT MPY
+
+#### Pressures ----------------
+MAOP = 1150 # pipeline MAOP
+sp = 50 #std.dev. on operating pressure
+mu_p = 1000 #average operating pressure
+RAI = 7 #Reassessment Interval in years
+
+## Depth Inputs ------------------------
+dp = 0.50  # percent of depth of defect (%)
+d_sd <- 0.09 # percent std. deviation for tool depth error
+# Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust
+# based on validation digs
+dc_M = 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
+dc_S = 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
+
+## Length Inputs -----------------------
+L = 3.0  # Reported Length of defect (in.)
+L_S = 0.3  # Std. Deviation for Length of defect (in.)
+Lc_M = 0.005  # mean corrosion rate in the Length direction, in./yr. - NOT MPY
+Lc_S = 0.001  # std. deviation for length corrosion rate, in./yr. - NOT MPY
+
+
+## Read SCADA ---------------------------------------------------------
 
 scada <- readr::read_csv("BRM10.csv", na = "<null>") %>%
   janitor::clean_names() %>% 
@@ -367,32 +461,6 @@ stochastic variables for simulation purposes.
 
 ```{r background,warning=FALSE,message=FALSE}
 
-n = 2e4 #NUmber of sims
-## pipe specs ------------------------------------
-D = 24 #Actual Diameter not nominal
-th = 0.375 #nominal wall thickness
-SMYS = 46000 #Specified Minimum Yield Strength
-
-#### Pressures ----------------------------------
-MAOP = 1150 # pipeline MAOP
-sp = 50 #std.dev. on operating pressure
-mu_p = 1000 #average operating pressure
-RAI = 7 #Reassessment Interval in years
-
-## Depth Inputs ##-----------------------------------
-dp = 0.50  # percent of depth of defect (%)
-d_sd <- 0.09 # percent std. deviation for tool depth error
-# Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust
-# based on validation digs
-dc_M = 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
-dc_S = 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
-
-## Length Inputs -----------------------------------
-L = 3.0  # Reported Length of defect (in.)
-L_S = 0.3  # Std. Deviation for Length of defect (in.)
-Lc_M = 0.005  # mean corrosion rate in the Length direction, in./yr. - NOT MPY
-Lc_S = 0.001  # std. deviation for length corrosion rate, in./yr. - NOT MPY
-
 op <- rnorm(mean = mu_p, sd = sp, n = n)
 
 opdf = tibble(op)
@@ -502,7 +570,7 @@ ggplot(Lvv, aes(Lv)) +
   annotate("text",
            label = msg,
            x = L/1.25,
-           y = n/20) +
+           y = n/25) +
   theme_bw()
 
 ```
@@ -550,7 +618,7 @@ smshist = ggplot(SMYSvv, aes(SMYSv)) +
   annotate("text",
            label = msg2,
            x = 1.1*SMYS,
-           y = n/20) +
+           y = n/25) +
   theme_bw()
 
 msg3=paste("Wall Thickness =",th,"in.")
@@ -564,7 +632,7 @@ wallhist = ggplot(tvv, aes(tv)) +
   annotate("text",
            label = msg3,
            x = th+0.01,
-           y = n/20) +
+           y = n/25) +
   theme_bw()
 
 smshist/wallhist
@@ -767,5 +835,260 @@ ggplot(B31df, aes(dv/th, P31)) +
 
 
 ```
-  
+
 ## CorLas
+The CorLas Model has two failure criteria that are compared against each other.  The first one is based on flow strength and the effective area of the flaw and the second one is based on the fracture toughness.
+
+### Flow Stress - Effective Area Criterion  
+The flow strength criterion is based on an effective area method similar to that used in corrosion assessment models and is based on the flow stress.  
+  
+In the CorLaS model the yield stress ($\sigma_y$) and ultimate stress
+($\sigma_u$) are used to calculate the flow stress ($\sigma_f$). The
+user has the option to use the following equations.
+
+$$
+\sigma_f = \left\{
+    \begin{array}{ll}
+        \sigma_{y}+10ksi\\[5pt]
+        \sigma_y + C_f(\sigma_u - \sigma_y)
+    \end{array}
+    \right.
+$$
+
+Where, $0\ge C_f \le 1.0$. If $C_f = 0.5$ is used this will produce the
+average between the yield and ultimate stress. This is used in the
+flow-strength criterion.
+
+$$
+\sigma_{failure} = \sigma_f\left(\frac{1-\frac{A}{A_0}}{1-\frac{A}{M_T A_0}}\right)
+$$
+
+Where A is the effective area of the flaw $La$ and $A_0$ is the total
+area in the area of the flaw $Lt$ and $M_T$ is the Folias bulging factor
+as shown.  
+  
+$$
+M_T = \left\{
+    \begin{array}{ll}
+    \begin{align}
+        \sqrt{1+1.255\left(\frac{c}{\sqrt{Rt}}\right)^2-0.0135\left(\frac{c}{\sqrt{Rt}}\right)^4}, \frac{c^2}{Rt}\le25\\[5pt]
+        3.3+0.064\frac{c}{\sqrt{Rt}},\frac{c^2}{Rt}\gt25\\
+        \end{align}
+    \end{array}
+    \right.
+$$
+  
+### Fracture Toughness Criterion  
+The stress-strain behavior is required for the J estimation. The
+following power-law relationship is employed in the model. Which is the
+sum of the elastic and plastic strain.
+
+$$\epsilon_t = \epsilon_e + \epsilon_p = \frac{\sigma}{E}+K \sigma^n$$
+Where:
+
+$\sigma$ = local stress
+
+E = Modulus of Elasticity
+
+K = Strain Hardening coefficient
+
+n = Strain Hardening Exponent
+
+The exponent, n is derived from tensile test data and the power law
+relationship of $\epsilon_p = K\sigma^n$ but absent the stress-strain
+data from a destructive tensile test it can be estimated using the yield
+($\sigma_y$) and ultimate ($\sigma_u$) stress from one of several
+empirical relationships. It describes the increase in stress necessary
+to continue to strain once the steel has reached the plastic region of
+the stress-strain curve. Typical values for low carbon steels can range
+from 0.15 to 0.23. With higher yield strength steels having lower strain
+hardening exponents and vice versa.
+
+The fracture toughness based failure stress is calculated by comparing
+the J-integral to the critical critical J and iterating the stress to
+find where the two are equal. The J-integral is the sum of the elastic
+and plastic strain toughness.
+
+$$\begin{aligned} 
+&J_t = J_e + J_p\\ 
+&Where:\\
+&J_e = Q_fF_{sf}a\frac{a^2\pi}{E}\\[5pt]
+&J_p = Q_fF_{sf}af_3\epsilon_p\sigma 
+\end{aligned}$$
+
+The combined equation for $J_t$ is:
+
+$$
+\begin{aligned}
+&J_t = Q_fF_{sf}a\left[\frac{\sigma^2\pi}{E}+f_3\epsilon_p\sigma\right]
+\end{aligned}  
+$$
+Where:  
+  
+### Shape Factor  
+  
+$$
+Q_f = 1.2581 - 0.20589\left(\frac{a}{L}\right) - 11.493\left(\frac{a}{L}\right)^2 + 29.586\left(\frac{a}{L}\right)^3 - 23.584\left(\frac{a}{L}\right)^4
+$$
+  
+### Free Surface Factor  
+  
+$$
+F_{sf} = \left\{
+    \begin{array}{ll}
+    \begin{align}
+        \frac{a}{c}+\frac{2t}{\pi a}\left(1-\frac{a}{c}\right)tan\left(\frac{\pi a}{2t}\right),\quad 0\lt \frac{a}{t} \le0.95\\[5pt]
+       \frac{a}{c}+\left(1-\frac{a}{c}\right)\left[8.515+\frac{162}{t}\left(\frac{a}{t} - 0.95\right)\right], \quad 0.95 \lt\frac{a}{t} \lt1.0\\
+        \end{align}
+    \end{array}
+    \right.
+$$
+
+###  Shih-Hutchinson Equation  
+$$
+f_3(n) = \left[3.85\left(\frac{1}{n}\right)^{\frac{1}{2}}\left(1-n\right)+\pi n\right]\left(1+n\right)
+$$
+If the J fracture toughness data is not available for the material under
+consideration, the critical fracture toughness can be estimated from the
+upper shelf Charpy V-Notch (CVN) values. Some empirical relationships
+developed include the following.
+
+$$
+\begin{aligned}
+&J_c = \frac{12CVN}{A_c}\\[5pt]
+&J_c = 10CVN
+\end{aligned}
+$$
+
+Where $A_c$ is the cross-sectional area of a full-size Charpy specimen
+($0.124\space in^2$) and CVN is upper-shelf impact energy (Ft-lbs).
+
+### Inputs
+
+The following information was given for this evaluation.
+
+$D =$ `r paste(D, "in.")` 
+
+$\sigma_y =$ `r paste(sigy, "ksi")`
+
+$\sigma_u =$ `r paste(sig_u, "ksi")`
+
+$t =$ `r paste(t, "in.")`
+
+$a =$ `r paste(a, "in.")` (crack depth)
+
+$L =$ `r paste(Lc,"in.")` (crack length)
+
+$CVN =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")` (Full-Size Upper Shelf Equivalent)
+
+```{r Corlas}
+
+# Corlas Functions ---------
+
+# Free surface factor -----------------------------------------------------
+
+F_sf1 <- a / c_l + 2 * t / (pi * a) * (1 - a / c_l) * tan(pi * a / (2 * t))
+# for at <= 0.95
+
+F_sf2 <- a / c_l + (1 - a / c_l) * (8.515 + (162 / t) * (a / t - 0.95))
+# for 0.95 < at < 1.0
+
+F_s <-  ifelse(at <= 0.95, F_sf1, F_sf2)
+# choose right equation based on a/t ratio
+
+
+# Shape Factor ------------------------------------------------------------
+Q_f <-
+  1.2581 - 0.20589 * (a / (2 * c_l)) - 11.493 * (a / (2 * c_l)) ^ 2 + 29.586 *
+  (a / (2 * c_l)) ^ 3 - 23.584 * (a / (2 * c_l)) ^ 4 #elliptical shape factor
+
+f_3 <-  (3.85 * sqrt (1 / n_sh) * (1 - n_sh) + (pi * n_sh)) * (1 + n_sh) #f3(n) factor
+# Shih and Hutchinson equation
+
+eps_y <- 0.005 - sigy / E #plastic strain @ 0.5% yield
+
+# Material Strength Factor
+Ks <- (sigy / (0.005 - sigy / E) ^ n_sh) #eq(14) in IPC paper
+# This relates the plastic strain at an arbitrary stress
+# epsilon_p = (S/K_s)^1/n eq(15): IPC paper use eq(15)in J calc in replace of
+# The plastic strain variable since it is dependent on S
+
+
+# J Integral --------------------------------------------------------------
+# A conservative lower-bound value for submerged arc welds
+# in many structural and low-alloy steels is 500 in-lb/in2
+
+J1c <- 10e-3* CVN_us_fs #Critical toughness (in-Klb/in2)
+# converted to Kips so units are consistent with YS, etc.
+# Other correlations suggested are 12CVN/Ac (Ac = area of FS charpy 0.124 in^2)
+
+
+# J integral function used to find stress when J1c = J
+# J1c is subtracted from J equation since it is being used to find the root
+# uniroot function assumes equation is equal to zero to find root
+
+J <-  function(S) {
+  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * n_sh * (S / Ks) ^ (1 / n_sh)  * S) - J1c
+}
+
+ # Failure stress based on J integral
+S1 <- uniroot(J,c(1,100), extendInt = "yes")$root
+# keep just the root solution (ksi)
+# failure stress for J-integral, finds the root when J1c = J, solves for
+# stress, wider search intervals don't effect the time to find root is of no
+# practical difference - set search interval between 1 and 100 to find root
+
+# Folias Factor -----------------------------------------------------------
+M_T1 <- sqrt(1 + 0.6275 * Lc^2 / (D*t) -
+               0.003375 * (Lc^2 / (D * t)) ^ 2) #for c^2/Rt <= 25
+
+
+M_T2 <- 3.3 + 0.032 * Lc^2 / (D * t) # for c^2/Rt > 25
+
+M_T <- ifelse(Lc ^ 2  / (D * t) > 50, M_T2, M_T1)
+# Select appropriate Folias factor based on c^2/Rt ratio
+
+
+# Flow stress -------------------------------------------------------------
+sig_f1 <- sigy + 10 # ksi
+
+sig_f2 <- sigy + 0.5 * (sig_u - sigy)
+#ksi - Paper suggests that Cf = 0.5 is reasonable fit
+
+sig_flow <- min(sig_f1, sig_f2) #flow stress = min between the two
+
+S2 <- sig_flow * ((1 - Lc * a / (Lc * t)) / (1 - Lc * a / (M_T * Lc * t)))
+# failure pressure based on effective area and folias factor
+
+# S1 # print S1 as a check
+# S2 # print S2 as a check
+
+fail <- min(S1, S2) # find min between S1 and S2
+
+```
+
+### Corlas Results  
+Shih-Hutchinson Factor:  
+$f_3 =$ `r round(f_3,2)` 
+  
+Free Surface Factor:  
+$F_s =$ `r round(F_s,2)`  
+
+Shape Factor:  
+$Q_f =$ `r round(Q_f,2)`  
+
+Critical Strain Toughness:  
+$J_1c =$ `r paste(round(J1c,2), "(K*(ft-lb)/in^2")` 
+
+### Failure Stress  
+  
+The two failure stress criterion are calculated and the minimum of the two are selected.
+
+The effective area failure stress is:  
+$\sigma_{EA} =$ `r round(S2,1)`  
+  
+The fracture toughness failure stress is:  
+$\sigma_{FT} =$ `r round(S1,1)`  
+
+The Overall Predicted failure stress would therefore be:  
+$\sigma_{fail} =$ `r round(fail,1)` 
