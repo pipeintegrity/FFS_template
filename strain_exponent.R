@@ -53,7 +53,7 @@ summary(uts_ys_mod)
 
 n_mod <- lm(n ~ ys/uts, data = tensile)
 
-n_mod2 <- lm(n ~ ys + luts, data = tensile)
+n_mod2 <- lm(n ~ ys + uts, data = tensile)
 
 n_mod3 <- lm(n ~ ys_uts, data = tensile)
 
@@ -98,7 +98,7 @@ lm_eqn <- function(df) {
   n_mod3 <- lm(n ~ ys_uts, data = df)
   eq <-
     substitute(
-      italic(n) == a ~ b %.% italic(YS/UTS) * "," ~  ~ italic(r) ^2 ~ "=" ~ r2,
+      italic(n) == a ~ b %.% ~ italic(YS/UTS) * "," ~  ~ italic(r) ^2 ~ "=" ~ r2,
       list(
         a = format(unname(coef(n_mod3)[1]), digits = 3),
         b = format(unname(coef(n_mod3)[2]), digits = 3),

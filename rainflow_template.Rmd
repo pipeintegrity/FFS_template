@@ -39,19 +39,23 @@ theme_set(theme_bw(14,"serif"))
 
 ## Basic Inputs -----------------------------------------------------------
 
-D <- 24 #Diameter
-t <- 0.375 #Wall thickness
-#logC <- 10.0851 #material toughness - constant
-m <- 3.0 #slope of equation (assumed to be 3.0 for steel)
-Y <- 1.12 #Constant shape factor
-C <- 8.61e-10 #fatigue constant per API 579
-sigy = 46 #ksi YS of steel
-K_1C <- 40 #ksi * in^1/2
-K_th <- 1.8 #ksi * in^1/2 :threshold for crack growth
+D <- 24 # Diameter
+t <- 0.375 # Wall thickness
+#logC <- 10.0851 # material toughness - constant
+m <- 3.0 # slope of equation (assumed to be 3.0 for steel)
+Y <- 1.12 # Constant shape factor
+C <- 8.61e-10 # fatigue constant per API 579
+sigy <- 46 # ksi YS of steel
+SMYS <- sigy * 1000 # Specified Minimum Yield Strength - convert to psi
+K_1C <- 40 # ksi * in^1/2
+K_th <- 1.8 # ksi * in^1/2 :threshold for crack growth
+th <- t #nominal wall thickness
+R <- D / 2 # Radius (in.)
+
 
 ## CorLas Parameters ------------------------------------------------------
 
-E =30e3 # Young's Modulus (ksi)
+E <- 30e3 # Young's Modulus (ksi)
 
 # sigy # ksi - YS
 sig_u <- 1.49 * sigy # ksi - UTS
@@ -62,88 +66,70 @@ n_sh <- 0.537 - 0.526 * sigy / sig_u
 # Do not use the equation given in the paper,
 # horrible fit to data and only based on 4 data points
 
-R <- D/2 # Radius (in.)
-
 # n <- 0.167 # from testing data if available
 
-a <- 0.10 # crack depth (in.)
+a <- 0.25 # crack depth (in.)
 
-Lc <- 15 # crack length (in.)
+Lc <- 5 # crack length (in.)
 
 # a/Lc # depth/Length ratio
 
-c_l <- Lc/2 # c = 1/2 * L (in.)
+c_l <- Lc / 2 # c = 1/2 * L (in.)
 #renamed to avoid confusion with fatigue constant C
 
-at <- a/t # depth to wt ratio
+at <- a / t # depth to wt ratio
 
 # Charpy Data ------------------------------
 
-CVN_ss <- 15 #Sub Size Charpy Energy (Ft-lbs)
+CVN_ss <- 5 #Sub Size Charpy Energy (Ft-lbs)
 
-t_ss <- 6.67 # Sub size charpy thickness in mm
-t_fs <- 0.394 # Full size charpy in inches
-SA_ss <- 0.99 # Shear area in decimal percent
+t_ss_mm <- 10 # Sub size charpy thickness in mm
 
+t_ss_in <- t_ss_mm / 25.4 # convert t_ss from mm to inches
 
-CVN_us_ss <- CVN_ss / (0.9 * SA_ss + 0.1) # CVN upper shelf sub size (ft-lbs)
+t_fs_in <- 0.394 # Full size charpy in inches
 
-CVN_us_fs <- CVN_us_ss * (t_fs / (t_ss / 25.4)) # CVN upper shelf full size (ft-lbs)
-# convert t_ss from mm to inches
+SA_ss <- 0.9 # Shear area in decimal percent
+
+CVN_us_ss <- CVN_ss / (0.9 * SA_ss + 0.1)
+# CVN upper shelf sub size (ft-lbs)
+
+CVN_us_fs <- CVN_us_ss * (t_fs_in / t_ss_in)
+# CVN upper shelf full size (ft-lbs)
 
 ## Corrosion Data -------------------------------------------------
 
-n = 1e4 #NUmber of sims for Monte Carlo
-## pipe specs ----------------------
-
-th = t #nominal wall thickness
-SMYS = sigy*1000 #n = 1e4 #NUmber of sims
-## pipe specs ------------------------------------
-
-th = t #nominal wall thickness
-SMYS = sigy*1000 #Specified Minimum Yield Strength - convert to psi
+n <-  1e4 # NUmber of sims for Monte Carlo
 
 #### Pressures ----------------------------------
-MAOP = 1150 # pipeline MAOP
-sp = 50 #std.dev. on operating pressure
-mu_p = 1000 #average operating pressure
-RAI = 7 #Reassessment Interval in years
+MAOP <- 1150 # pipeline MAOP
+sp <- 50 # std.dev. on operating pressure
+mu_p <- 1000 # average operating pressure
+RAI <-  7 # Reassessment Interval in years
 
-## Depth Inputs ##-----------------------------------
-dp = 0.50  # percent of depth of defect (%)
+## Corrosion Depth Inputs -----------------------------------
+dp <- 0.50  # percent of depth of defect (%)
 d_sd <- 0.09 # percent std. deviation for tool depth error
 # Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust
 # based on validation digs
-dc_M = 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
-dc_S = 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
+dc_M <- 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
+dc_S <- 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
 
-## Length Inputs -----------------------------------
-L = 3.0  # Reported Length of defect (in.)
-L_S = 0.3  # Std. Deviation for Length of defect (in.)
-Lc_M = 0.005  # mean corrosion rate in the Length direction, in./yr. - NOT MPY
-Lc_S = 0.001  # std. deviation for length corrosion rate, in./yr. - NOT MPY
+## Corrosion Length Inputs -----------------------------------
+L <- 3.0  # Reported Length of defect (in.)
+L_S <- 0.3  # Std. Deviation for Length of defect (in.)
+Lc_M <- 0.005 # mean corrosion rate in the Length direction, in./yr. - NOT MPY
+Lc_S <- 0.001 # std. deviation for length corrosion rate, in./yr. - NOT MPY
 
 #### Pressures ----------------
-MAOP = 1150 # pipeline MAOP
-sp = 50 #std.dev. on operating pressure
-mu_p = 1000 #average operating pressure
-RAI = 7 #Reassessment Interval in years
+MAOP <- 1150 # pipeline MAOP
+sp <- 50 # std.dev. on operating pressure
+mu_p <- 1000 # average operating pressure
+RAI <-  7 # Reassessment Interval in years
 
-## Depth Inputs ------------------------
-dp = 0.50  # percent of depth of defect (%)
-d_sd <- 0.09 # percent std. deviation for tool depth error
-# Std. Deviation for depth (in.): +/- 10% at 80% CI = 7.8% SD, need to adjust
-# based on validation digs
-dc_M = 0.009  # mean corrosion rate for depth, in./yr. - NOT MPY
-dc_S = 0.0015  # std. deviation for depth corrosion rate, in./yr. - NOT MPY
-
-## Length Inputs -----------------------
-L = 3.0  # Reported Length of defect (in.)
-L_S = 0.3  # Std. Deviation for Length of defect (in.)
-Lc_M = 0.005  # mean corrosion rate in the Length direction, in./yr. - NOT MPY
-Lc_S = 0.001  # std. deviation for length corrosion rate, in./yr. - NOT MPY
-
-
+```
+  
+```{r scadadata}
 ## Read SCADA ---------------------------------------------------------
 
 scada <- readr::read_csv("BRM10.csv", na = "<null>") %>%
@@ -151,7 +137,8 @@ scada <- readr::read_csv("BRM10.csv", na = "<null>") %>%
   mutate(date = mdy(date))
 
 
-scada <- scada %>% mutate(date_time = ymd_hms(paste(scada$date, scada$time)))
+scada <- scada %>% 
+  mutate(date_time = ymd_hms(paste(scada$date, scada$time)))
 
 namedf <- names(scada)
 
@@ -167,7 +154,6 @@ scada <- scada %>%
   # mutate(Pressure = abs(as.numeric(Pressure))) %>%
   tidyr::drop_na() %>% #drop missing values
   unique() #remove any duplicates 
-
 
 
 # Calc daily min/max
@@ -194,8 +180,8 @@ distribution fit to the data and the second one is the pressure changes
 between SCADA readings.
 
 ```{r histo}
-scada <- scada %>% 
-  mutate(delta_p=Pressure-lag(Pressure,1))
+scada <- scada %>%
+  mutate(delta_p = Pressure - lag(Pressure, 1))
 # Calc delta P = p_(i) - P_(i-1)
 
 
@@ -311,7 +297,10 @@ results are tabulated here. This table can be searched for a value,
 sorted on any column or extended to show more rows at once.
 
 ```{r miners}
-cyclecount %>% select(-cycles) %>% DT::datatable()
+
+cyclecount %>%
+  select(-cycles) %>%
+  DT::datatable()
 
 ```
 
@@ -461,9 +450,9 @@ stochastic variables for simulation purposes.
 
 ```{r background,warning=FALSE,message=FALSE}
 
-op <- rnorm(mean = mu_p, sd = sp, n = n)
+opdf <- tibble(op = rnorm(mean = mu_p, sd = sp, n = n))
 
-opdf = tibble(op)
+# opdf <-  tibble(op)
 
 # summary(opdf)
 
@@ -606,10 +595,10 @@ SMYSv = rlnorm(n,LS, 0.02)
 
 # SMYSv <- evd::rgev(n = n,loc = 1.14917, scale = 0.13797, shape = 0.02298)*SMYS
 
-SMYSvv=tibble(SMYSv)
-msg2=paste("SMYS =", SMYS,"psi")
+SMYSvv <- tibble(SMYSv)
+msg2 <- paste("SMYS =", SMYS,"psi")
 
-smshist = ggplot(SMYSvv, aes(SMYSv)) +
+smshist <-  ggplot(SMYSvv, aes(SMYSv)) +
   geom_histogram(bins = 60,
                  fill = 'violetred2',
                  col = 'black') +
@@ -621,9 +610,9 @@ smshist = ggplot(SMYSvv, aes(SMYSv)) +
            y = n/25) +
   theme_bw()
 
-msg3=paste("Wall Thickness =",th,"in.")
+msg3 <- paste("Wall Thickness =",th,"in.")
 
-wallhist = ggplot(tvv, aes(tv)) +
+wallhist <-  ggplot(tvv, aes(tv)) +
   geom_histogram(bins = 60,
                  fill = 'slateblue',
                  col = 'black') +
@@ -658,11 +647,11 @@ simulation.
 # normal and lognormal.  These parameters agree with min/max stated by kiefner
 # in studies of MB31G.  Set location to 0.94 to agree with Kiefner study.
 
-BF_M = 1.06
-BF_S = 0.118
+BF_M <-  1.06
+BF_S <-  0.118
 
 # Changed from lognorm to norm with small SD, tails too extreme on lognorm.
-BF = rnorm(n,BF_M, BF_S) #adjustment for accuracy of B31G 
+BF <-  rnorm(n,BF_M, BF_S) #adjustment for accuracy of B31G 
 
 #Folias Factor
 M <- ifelse(Lv ^ 2 / (Dv * tv) <= 50,
@@ -672,18 +661,18 @@ M <- ifelse(Lv ^ 2 / (Dv * tv) <= 50,
             0.032 * (Lv / sqrt(Dv * tv)) ^ 2 +
               3.3)  # Folias Factor
 
-SB31G = (SMYSv + 10000) *
+SB31G <-  (SMYSv + 10000) *
   ((1 - 0.85 * dv / tv) /
      (1 - 0.85 * dv / tv / M)) * BF
 
-P31 = 2 * SB31G * tv / Dv
+P31 <-  2 * SB31G * tv / Dv
 
 # rm(B31df) #clear out old DF
 
-GLR=ifelse(SB31G>SMYSv,"G",ifelse(SB31G/SMYSv<(1.1/M),"L","R")) #Good, Leak or Rupture count
+GLR <- ifelse(SB31G>SMYSv,"G",ifelse(SB31G/SMYSv<(1.1/M),"L","R")) #Good, Leak or Rupture count
 
-B31df <- tibble(tv,dv,Dv,Lv,M,SB31G,P31,op,GLR)
-opp= B31df %>% pivot_longer(cols = P31:op)
+B31df <- tibble(tv,dv,Dv,Lv,M,SB31G,P31,op = opdf$op,GLR)
+opp <-  B31df %>% pivot_longer(cols = P31:op)
 
 dlookr::describe(B31df) %>%
   select(variable:IQR,
@@ -709,12 +698,12 @@ dlookr::describe(B31df) %>%
   ) %>%
   flextable::flextable()
 
-meanp=round(mean(P31),0)
-sdp=round(sd(P31),0)
-txt1=paste("mu ==",meanp)
-txt2=paste("sigma== ",sdp)
+meanp <- round(mean(P31),0)
+sdp <- round(sd(P31),0)
+txt1 <- paste("mu ==",meanp)
+txt2 <- paste("sigma== ",sdp)
 
-P31hist = ggplot(B31df) +
+P31hist <-  ggplot(B31df) +
   geom_histogram(
     aes(P31, y = ..density..),
     fill = 'lightblue',
@@ -756,18 +745,18 @@ P31hist = ggplot(B31df) +
 f1 <- function(x) dnorm(x,mu_p, sp)
 #curve(f1, from=500, to= 1600,n = 201)
 # f2= function(x) 1/(sdp*sqrt(2*pi))*exp(-1/2*((x-meanp)/sdp)^2)
-f2 = function(x) dnorm(x, meanp, sdp)
+f2 <-  function(x) dnorm(x, meanp, sdp)
 #curve(f2,col='red', add=T,n=201)
-rt = uniroot(function(x)
+rt <-  uniroot(function(x)
   f1(x) - f2(x), c(1000, 1500))$root
 
-PoF=pnorm(q = rt,meanp,sdp)+(1-pnorm(rt,mu_p,sp))
+PoF <- pnorm(q = rt,meanp,sdp)+(1-pnorm(rt,mu_p,sp))
 
 
 
 txt <- "PoF ="
 
-opphist = ggplot(opp) +
+opphist <-  ggplot(opp) +
   geom_density(aes(value, fill = name), 
                alpha = 0.6) +
   theme_bw() +
@@ -810,7 +799,8 @@ psig with a depth of approximately 65% of nominal wall thickness.
 
 ```{r fancy stuff ,warning=FALSE,message=FALSE,fig.height=4,fig.width=6,dpi=450}
 ####Heat Map of failure pressure vs depth ####
-ggplot(B31df, aes(dv/th, P31)) +
+ggplot(B31df,
+       aes(dv / th, P31)) +
   stat_density_2d(aes(fill = ..level.., alpha = ..level..),
                   col = 'black',
                   geom = "polygon") +
@@ -820,29 +810,33 @@ ggplot(B31df, aes(dv/th, P31)) +
         plot.margin = margin(0.5, 0.5, 0.5, 0.5, "cm")) +
   labs(title = "Failure Pressure vs. Anomaly Depth",
        x = "Depth (%)",
-       y = "Predicted Failure Pressure (psig)")+
-  ylim(MAOP-200, NA)+
-  geom_hline(yintercept = MAOP, 
-             col='royalblue',
-             lty=2, 
-             lwd=0.80)+
-  annotate("text",
-           label="MAOP",
-           x=dp *1.025, 
-           y= MAOP, 
-           vjust=-0.7,
-           size=5)
+       y = "Predicted Failure Pressure (psig)") +
+  ylim(MAOP - 200, NA) +
+  geom_hline(
+    yintercept = MAOP,
+    col = 'royalblue',
+    lty = 2,
+    lwd = 0.80
+  ) +
+  annotate(
+    "text",
+    label = "MAOP",
+    x = dp * 1.025,
+    y = MAOP,
+    vjust = -0.7,
+    size = 5
+  )
 
 
 ```
 
 ## CorLas
-The CorLas Model has two failure criteria that are compared against each other.  The first one is based on flow strength and the effective area of the flaw and the second one is based on the fracture toughness.
+The CorLas Model has two failure criteria that are compared against each other.  The first one is based on flow strength and the effective area of the flaw and the second one is based on the fracture toughness J integral.
 
 ### Flow Stress - Effective Area Criterion  
-The flow strength criterion is based on an effective area method similar to that used in corrosion assessment models and is based on the flow stress.  
+The first criterion is based on an effective area method similar to that used in corrosion assessment models and is based on the flow stress.  
   
-In the CorLaS model the yield stress ($\sigma_y$) and ultimate stress
+In the CorLaS model, the yield stress ($\sigma_y$) and ultimate stress
 ($\sigma_u$) are used to calculate the flow stress ($\sigma_f$). The
 user has the option to use the following equations.
 
@@ -855,7 +849,7 @@ $$
     \right.
 $$
 
-Where, $0\ge C_f \le 1.0$. If $C_f = 0.5$ is used this will produce the
+Where, $0\gt C_f \le 1.0$. If $C_f = 0.5$ is used this will produce the
 average between the yield and ultimate stress. This is used in the
 flow-strength criterion.
 
@@ -904,6 +898,12 @@ the stress-strain curve. Typical values for low carbon steels can range
 from 0.15 to 0.23. With higher yield strength steels having lower strain
 hardening exponents and vice versa.
 
+One such model for the strain hardening exponent is given in the CorLas Model documentation as the following: ^[Jaske, C.E. and Beavers, J.A., 2001, "Integrity and Remaining Life of Pipe with Stress Corrosion Cracking," PRCI Report, Catalog No. L51928]
+  
+$$
+ n= -0.00546\left(\frac{\sigma_y}{\sigma_u}\right)-0.547\left(\frac{\sigma_y}{\sigma_u}\right)^2
+$$
+
 The fracture toughness based failure stress is calculated by comparing
 the J-integral to the critical critical J and iterating the stress to
 find where the two are equal. The J-integral is the sum of the elastic
@@ -926,6 +926,7 @@ $$
 Where:  
   
 ### Shape Factor  
+The shape factor, $Q_f$, is calculated from the following equation ^[ Jaske, C.E., 1989, "Estimation of the C* Integral for Creep-Crack-Growth Test Specimens," The Mechanism of Fracture, ASM International, Materials Park, OH, pp. 577-586]
   
 $$
 Q_f = 1.2581 - 0.20589\left(\frac{a}{L}\right) - 11.493\left(\frac{a}{L}\right)^2 + 29.586\left(\frac{a}{L}\right)^3 - 23.584\left(\frac{a}{L}\right)^4
@@ -945,6 +946,8 @@ F_{sf} = \left\{
 $$
 
 ###  Shih-Hutchinson Equation  
+
+The $f_3$ factor is given as the following equation. ^[ Shih, C.F. and Hutchinson, J.W., 1975, "Fully Plastic Solutions and Large Scale Yielding Estimates for Plane Stress Crack Problems," Report No. DEAP S-14, Harvard University, Cambridge, MA]
 $$
 f_3(n) = \left[3.85\left(\frac{1}{n}\right)^{\frac{1}{2}}\left(1-n\right)+\pi n\right]\left(1+n\right)
 $$
@@ -967,19 +970,33 @@ Where $A_c$ is the cross-sectional area of a full-size Charpy specimen
 
 The following information was given for this evaluation.
 
+Diameter:  
 $D =$ `r paste(D, "in.")` 
-
+  
+Nominal Wall Thickness:  
+$t =$ `r paste(t, "in.")`  
+  
+Yield Stress:  
 $\sigma_y =$ `r paste(sigy, "ksi")`
 
+Ultimate Tensile Strength:  
 $\sigma_u =$ `r paste(sig_u, "ksi")`
+  
+Crack depth:  
+$a =$ `r paste(a, "in.")` 
+  
+Crack length:
+$L =$ `r paste(Lc,"in.")` 
 
-$t =$ `r paste(t, "in.")`
+Sub-Size Charpy Energy:  
+$CVN_{ss} =$ `r paste(CVN_ss, "Ft-lbs")` 
 
-$a =$ `r paste(a, "in.")` (crack depth)
+Shear Area Percent:  
+$SA_{ss} =$ `r paste0(SA_ss * 100,"%")`  
+  
+Full-Size Upper Shelf Equivalent Charpy  
+$CVN_{fs} =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")` 
 
-$L =$ `r paste(Lc,"in.")` (crack length)
-
-$CVN =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")` (Full-Size Upper Shelf Equivalent)
 
 ```{r Corlas}
 
@@ -1003,12 +1020,14 @@ Q_f <-
   (a / (2 * c_l)) ^ 3 - 23.584 * (a / (2 * c_l)) ^ 4 #elliptical shape factor
 
 f_3 <-  (3.85 * sqrt (1 / n_sh) * (1 - n_sh) + (pi * n_sh)) * (1 + n_sh) #f3(n) factor
-# Shih and Hutchinson equation
+# Shih and Hutchinson equation from Shih, C.F. and Hutchinson, J.W., 1975,
+# "Fully Plastic Solutions and Large Scale Yielding Estimates for Plane
+# Stress Crack Problems," Report No. DEAP S-14, Harvard University, Cambridge, MA.
 
-eps_y <- 0.005 - sigy / E #plastic strain @ 0.5% yield
+eps_y <- 0.005 - sigy / E # plastic strain @ 0.5% strain
 
 # Material Strength Factor
-Ks <- (sigy / (0.005 - sigy / E) ^ n_sh) #eq(14) in IPC paper
+Ks <- (sigy / (0.005 - sigy / E) ^ n_sh) # eq(14) in IPC paper
 # This relates the plastic strain at an arbitrary stress
 # epsilon_p = (S/K_s)^1/n eq(15): IPC paper use eq(15)in J calc in replace of
 # The plastic strain variable since it is dependent on S
@@ -1018,9 +1037,12 @@ Ks <- (sigy / (0.005 - sigy / E) ^ n_sh) #eq(14) in IPC paper
 # A conservative lower-bound value for submerged arc welds
 # in many structural and low-alloy steels is 500 in-lb/in2
 
-J1c <- 10e-3* CVN_us_fs #Critical toughness (in-Klb/in2)
+J1c <- 10e-3 * CVN_us_fs #Critical toughness (ksi/in^0.5)
 # converted to Kips so units are consistent with YS, etc.
-# Other correlations suggested are 12CVN/Ac (Ac = area of FS charpy 0.124 in^2)
+# Other correlations suggested are 
+# J1c <- 12e-3*CVN_us_fs/0.124
+# (Ac = area of FS charpy 0.124 in^2) 
+# Divided by 1e3 to make units consistent with ksi
 
 
 # J integral function used to find stress when J1c = J
@@ -1040,7 +1062,7 @@ S1 <- uniroot(J,c(1,100), extendInt = "yes")$root
 
 # Folias Factor -----------------------------------------------------------
 M_T1 <- sqrt(1 + 0.6275 * Lc^2 / (D*t) -
-               0.003375 * (Lc^2 / (D * t)) ^ 2) #for c^2/Rt <= 25
+               0.003375 * (Lc^2 / (D * t)) ^ 2) # for c^2/Rt <= 25
 
 
 M_T2 <- 3.3 + 0.032 * Lc^2 / (D * t) # for c^2/Rt > 25
@@ -1068,6 +1090,16 @@ fail <- min(S1, S2) # find min between S1 and S2
 ```
 
 ### Corlas Results  
+
+Plastic Strain Power Law Coefficient:  
+$K_s =$ `r round(Ks,2)`  
+
+Strain Hardening Exponent:  
+$n=$ `r round(n_sh,3)`  
+
+Folias Factor:  
+$M_T =$ `r round(M_T,2)`
+
 Shih-Hutchinson Factor:  
 $f_3 =$ `r round(f_3,2)` 
   
@@ -1078,17 +1110,23 @@ Shape Factor:
 $Q_f =$ `r round(Q_f,2)`  
 
 Critical Strain Toughness:  
-$J_1c =$ `r paste(round(J1c,2), "(K*(ft-lb)/in^2")` 
+$J_1c =$ `r paste(round(J1c,2), "(ksi-in)")` 
 
 ### Failure Stress  
   
 The two failure stress criterion are calculated and the minimum of the two are selected.
 
 The effective area failure stress is:  
-$\sigma_{EA} =$ `r round(S2,1)`  
+$\sigma_{EA} =$ `r paste(round(S2,1),"ksi")`  
   
 The fracture toughness failure stress is:  
-$\sigma_{FT} =$ `r round(S1,1)`  
+$\sigma_{FT} =$ `r paste(round(S1,1),"ksi")`  
 
 The Overall Predicted failure stress would therefore be:  
-$\sigma_{fail} =$ `r round(fail,1)` 
+$\sigma_{fail} =$ `r paste(round(fail,1),"ksi")` 
+  
+Failure stress as percent of SMYS:  
+$\% SMYS =$ `r paste(round(fail/sigy,3)*100,"%")`
+
+Predicted failure pressure:  
+$P_{fail} =$ `r paste(floor(2e3*fail*t/D), "psig")`
