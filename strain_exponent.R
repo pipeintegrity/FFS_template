@@ -8,6 +8,7 @@
 library(readxl)
 library(tidyverse)
 library(tidymodels)
+library(patchwork)
 # library(ggmisc)
 theme_set(theme_minimal(14,"serif"))
 
@@ -57,10 +58,16 @@ n_mod2 <- lm(n ~ ys + uts, data = tensile)
 
 n_mod3 <- lm(n ~ ys_uts, data = tensile)
 
-n_mod4 <- lm(n ~ ys*uts, data = tensile)
+n_mod4 <- lm(n ~ ys*uts, data = tensile) #interaction not significant
 
 mod4_fit <- predict(n_mod4)
 
+
+mod2_chk <- performance::check_model(n_mod2)
+mod3_chk <- performance::check_model(n_mod3)
+
+mod2_chk
+mod3_chk
 
 
 g1 <- glance(n_mod)
@@ -171,6 +178,7 @@ fit_n <-  n_workflow %>%
   fit(n_bake)
 
 glance(fit_n)
+
 
 
 # quadratic ---------------------------------------------------------------

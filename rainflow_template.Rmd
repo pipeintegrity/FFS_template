@@ -128,7 +128,7 @@ mu_p <- 1000 # average operating pressure
 RAI <-  7 # Reassessment Interval in years
 
 ```
-  
+
 ```{r scadadata}
 ## Read SCADA ---------------------------------------------------------
 
@@ -791,11 +791,10 @@ P31hist/opphist
 This plot indicates the most likely predicted failure pressure and depth
 combinations based on the reported depth and the known properties of the
 pipeline using the Modified B31G Equations for failure pressure. The
-horizontal line represents MAOP. It can be seen that the depth would
-have to probably exceed 70% before the anomaly would fail at MAOP and
-that a small number of simulations predicted it being that deep. The
-majority of the simulations predicted the failure pressure around 1400
-psig with a depth of approximately 65% of nominal wall thickness.
+horizontal line represents MAOP. The lighter areas are indications of
+fewer simulations resulting in that depth and failure pressure
+combination while darker areas have a high concentration of simulations
+in that area indicating those results are more likely.
 
 ```{r fancy stuff ,warning=FALSE,message=FALSE,fig.height=4,fig.width=6,dpi=450}
 ####Heat Map of failure pressure vs depth ####
@@ -831,11 +830,17 @@ ggplot(B31df,
 ```
 
 ## CorLas
-The CorLas Model has two failure criteria that are compared against each other.  The first one is based on flow strength and the effective area of the flaw and the second one is based on the fracture toughness J integral.
 
-### Flow Stress - Effective Area Criterion  
-The first criterion is based on an effective area method similar to that used in corrosion assessment models and is based on the flow stress.  
-  
+The CorLas Model has two failure criteria that are compared against each
+other. The first one is based on flow strength and the effective area of
+the flaw and the second one is based on the fracture toughness J
+integral. It was originally developed for the engineering critical analysis of pipes with stress corrosion cracking (SCC).
+
+### Flow Stress - Effective Area Criterion
+
+The first criterion is based on an effective area method similar to that
+used in corrosion assessment models and is based on the flow stress.
+
 In the CorLaS model, the yield stress ($\sigma_y$) and ultimate stress
 ($\sigma_u$) are used to calculate the flow stress ($\sigma_f$). The
 user has the option to use the following equations.
@@ -843,7 +848,7 @@ user has the option to use the following equations.
 $$
 \sigma_f = \left\{
     \begin{array}{ll}
-        \sigma_{y}+10ksi\\[5pt]
+        \sigma_{y}+10\space ksi\\[5pt]
         \sigma_y + C_f(\sigma_u - \sigma_y)
     \end{array}
     \right.
@@ -859,8 +864,8 @@ $$
 
 Where A is the effective area of the flaw $La$ and $A_0$ is the total
 area in the area of the flaw $Lt$ and $M_T$ is the Folias bulging factor
-as shown.  
-  
+as shown.
+
 $$
 M_T = \left\{
     \begin{array}{ll}
@@ -871,8 +876,9 @@ M_T = \left\{
     \end{array}
     \right.
 $$
-  
-### Fracture Toughness Criterion  
+
+### Fracture Toughness Criterion
+
 The stress-strain behavior is required for the J estimation. The
 following power-law relationship is employed in the model. Which is the
 sum of the elastic and plastic strain.
@@ -888,6 +894,8 @@ K = Strain Hardening coefficient
 
 n = Strain Hardening Exponent
 
+### Strain Hardening Exponent
+
 The exponent, n is derived from tensile test data and the power law
 relationship of $\epsilon_p = K\sigma^n$ but absent the stress-strain
 data from a destructive tensile test it can be estimated using the yield
@@ -895,22 +903,30 @@ data from a destructive tensile test it can be estimated using the yield
 empirical relationships. It describes the increase in stress necessary
 to continue to strain once the steel has reached the plastic region of
 the stress-strain curve. Typical values for low carbon steels can range
-from 0.15 to 0.23. With higher yield strength steels having lower strain
+from 0.15 to 0.25. With higher yield strength steels having lower strain
 hardening exponents and vice versa.
 
-One such model for the strain hardening exponent is given in the CorLas Model documentation as the following: ^[Jaske, C.E. and Beavers, J.A., 2001, "Integrity and Remaining Life of Pipe with Stress Corrosion Cracking," PRCI Report, Catalog No. L51928]
-  
+One such model for the strain hardening exponent is given in the CorLas
+Model documentation as the following. [^1] It should be noted that this is based on four data points. Comparison with measured strain hardening exponent in the ECA2 data indicates it predicts a lower n value therefore increasing the predicted failure pressure.
+
+[^1]: Jaske, C.E. and Beavers, J.A., 2001, "Integrity and Remaining Life of Pipe with Stress Corrosion Cracking," PRCI Report, Catalog No. L51928
+
 $$
  n= -0.00546\left(\frac{\sigma_y}{\sigma_u}\right)-0.547\left(\frac{\sigma_y}{\sigma_u}\right)^2
 $$
 
+Another relationship has been found from the 64 data points in the ECA2 data that is described by the following relationship. This correlated with the measured values with an $R^2$ of 0.84.  
+$$
+n = 0.15036 -0.00677 \sigma_y+0.005\sigma_u
+$$
+
 The fracture toughness based failure stress is calculated by comparing
-the J-integral to the critical critical J and iterating the stress to
-find where the two are equal. The J-integral is the sum of the elastic
+the J-integral to the critical J and iterating the local stress to
+find where $J = J_c$. The J-integral is the sum of the elastic
 and plastic strain toughness.
 
 $$\begin{aligned} 
-&J_t = J_e + J_p\\ 
+&J_t = J_e + J_p\\\\
 &Where:\\
 &J_e = Q_fF_{sf}a\frac{a^2\pi}{E}\\[5pt]
 &J_p = Q_fF_{sf}af_3\epsilon_p\sigma 
@@ -922,18 +938,22 @@ $$
 \begin{aligned}
 &J_t = Q_fF_{sf}a\left[\frac{\sigma^2\pi}{E}+f_3\epsilon_p\sigma\right]
 \end{aligned}  
-$$
-Where:  
-  
-### Shape Factor  
-The shape factor, $Q_f$, is calculated from the following equation ^[ Jaske, C.E., 1989, "Estimation of the C* Integral for Creep-Crack-Growth Test Specimens," The Mechanism of Fracture, ASM International, Materials Park, OH, pp. 577-586]
-  
+$$ Where:
+
+### Shape Factor
+
+The shape factor, $Q_f$, is calculated from the following equation [^2]
+
+[^2]: Jaske, C.E., 1989, "Estimation of the C\* Integral for
+    Creep-Crack-Growth Test Specimens," The Mechanism of Fracture, ASM
+    International, Materials Park, OH, pp. 577-586
+
 $$
 Q_f = 1.2581 - 0.20589\left(\frac{a}{L}\right) - 11.493\left(\frac{a}{L}\right)^2 + 29.586\left(\frac{a}{L}\right)^3 - 23.584\left(\frac{a}{L}\right)^4
 $$
-  
-### Free Surface Factor  
-  
+
+### Free Surface Factor
+
 $$
 F_{sf} = \left\{
     \begin{array}{ll}
@@ -945,16 +965,18 @@ F_{sf} = \left\{
     \right.
 $$
 
-###  Shih-Hutchinson Equation  
+### Shih-Hutchinson Equation
 
-The $f_3$ factor is given as the following equation. ^[ Shih, C.F. and Hutchinson, J.W., 1975, "Fully Plastic Solutions and Large Scale Yielding Estimates for Plane Stress Crack Problems," Report No. DEAP S-14, Harvard University, Cambridge, MA]
-$$
+The $f_3$ factor is given as the following equation. [^3] $$
 f_3(n) = \left[3.85\left(\frac{1}{n}\right)^{\frac{1}{2}}\left(1-n\right)+\pi n\right]\left(1+n\right)
-$$
-If the J fracture toughness data is not available for the material under
-consideration, the critical fracture toughness can be estimated from the
-upper shelf Charpy V-Notch (CVN) values. Some empirical relationships
-developed include the following.
+$$ If the J fracture toughness data is not available for the material
+under consideration, the critical fracture toughness can be estimated
+from the upper shelf Charpy V-Notch (CVN) values. Some empirical
+relationships developed include the following.
+
+[^3]: Shih, C.F. and Hutchinson, J.W., 1975, "Fully Plastic Solutions
+    and Large Scale Yielding Estimates for Plane Stress Crack Problems,"
+    Report No. DEAP S-14, Harvard University, Cambridge, MA
 
 $$
 \begin{aligned}
@@ -970,33 +992,32 @@ Where $A_c$ is the cross-sectional area of a full-size Charpy specimen
 
 The following information was given for this evaluation.
 
-Diameter:  
-$D =$ `r paste(D, "in.")` 
-  
-Nominal Wall Thickness:  
-$t =$ `r paste(t, "in.")`  
-  
-Yield Stress:  
+Diameter:\
+$D =$ `r paste(D, "in.")`
+
+Nominal Wall Thickness:\
+$t =$ `r paste(t, "in.")`
+
+Yield Stress:\
 $\sigma_y =$ `r paste(sigy, "ksi")`
 
-Ultimate Tensile Strength:  
+Ultimate Tensile Strength:\
 $\sigma_u =$ `r paste(sig_u, "ksi")`
-  
-Crack depth:  
-$a =$ `r paste(a, "in.")` 
-  
-Crack length:
-$L =$ `r paste(Lc,"in.")` 
 
-Sub-Size Charpy Energy:  
-$CVN_{ss} =$ `r paste(CVN_ss, "Ft-lbs")` 
+Crack depth:\
+$a =$ `r paste(a, "in.")`
 
-Shear Area Percent:  
-$SA_{ss} =$ `r paste0(SA_ss * 100,"%")`  
+Crack length:  
+$L =$ `r paste(Lc,"in.")`  
   
-Full-Size Upper Shelf Equivalent Charpy  
-$CVN_{fs} =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")` 
+Sub-Size Charpy Energy:\
+$CVN_{ss} =$ `r paste(CVN_ss, "Ft-lbs")`
 
+Shear Area Percent:\
+$SA_{ss} =$ `r paste0(SA_ss * 100,"%")`
+
+Full-Size Upper Shelf Equivalent Charpy\
+$CVN_{fs} =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")`
 
 ```{r Corlas}
 
@@ -1089,44 +1110,45 @@ fail <- min(S1, S2) # find min between S1 and S2
 
 ```
 
-### Corlas Results  
+### Corlas Results
 
-Plastic Strain Power Law Coefficient:  
-$K_s =$ `r round(Ks,2)`  
+Plastic Strain Power Law Coefficient:\
+$K_s =$ `r round(Ks,2)`
 
-Strain Hardening Exponent:  
-$n=$ `r round(n_sh,3)`  
+Strain Hardening Exponent:\
+$n=$ `r round(n_sh,3)`
 
-Folias Factor:  
+Folias Factor:\
 $M_T =$ `r round(M_T,2)`
 
-Shih-Hutchinson Factor:  
-$f_3 =$ `r round(f_3,2)` 
-  
-Free Surface Factor:  
-$F_s =$ `r round(F_s,2)`  
+Shih-Hutchinson Factor:\
+$f_3 =$ `r round(f_3,2)`
 
-Shape Factor:  
-$Q_f =$ `r round(Q_f,2)`  
+Free Surface Factor:\
+$F_s =$ `r round(F_s,2)`
 
-Critical Strain Toughness:  
-$J_1c =$ `r paste(round(J1c,2), "(ksi-in)")` 
+Shape Factor:\
+$Q_f =$ `r round(Q_f,2)`
 
-### Failure Stress  
-  
-The two failure stress criterion are calculated and the minimum of the two are selected.
+Critical Strain Toughness:\
+$J_1c =$ `r paste(round(J1c,2), "(ksi-in)")`
 
-The effective area failure stress is:  
-$\sigma_{EA} =$ `r paste(round(S2,1),"ksi")`  
-  
-The fracture toughness failure stress is:  
-$\sigma_{FT} =$ `r paste(round(S1,1),"ksi")`  
+### Failure Stress
 
-The Overall Predicted failure stress would therefore be:  
-$\sigma_{fail} =$ `r paste(round(fail,1),"ksi")` 
-  
-Failure stress as percent of SMYS:  
+The two failure stress criterion are calculated and the minimum of the
+two are selected.
+
+The effective area failure stress is:\
+$\sigma_{EA} =$ `r paste(round(S2,1),"ksi")`
+
+The fracture toughness failure stress is:\
+$\sigma_{FT} =$ `r paste(round(S1,1),"ksi")`
+
+The Overall Predicted failure stress would therefore be:\
+$\sigma_{fail} =$ `r paste(round(fail,1),"ksi")`
+
+Failure stress as percent of SMYS:\
 $\% SMYS =$ `r paste(round(fail/sigy,3)*100,"%")`
 
-Predicted failure pressure:  
+Predicted failure pressure:\
 $P_{fail} =$ `r paste(floor(2e3*fail*t/D), "psig")`
