@@ -45,8 +45,8 @@ t <- 0.375 # Wall thickness
 m <- 3.0 # slope of equation (assumed to be 3.0 for steel)
 Y <- 1.12 # Constant shape factor
 C <- 8.61e-10 # fatigue constant per API 579
-sigy <- 46 # ksi YS of steel
-SMYS <- sigy * 1000 # Specified Minimum Yield Strength - convert to psi
+sig_y <- 46 # ksi YS of steel
+SMYS <- sig_y * 1000 # Specified Minimum Yield Strength - convert to psi
 K_1C <- 40 # ksi * in^1/2
 K_th <- 1.8 # ksi * in^1/2 :threshold for crack growth
 th <- t #nominal wall thickness
@@ -57,20 +57,20 @@ R <- D / 2 # Radius (in.)
 
 E <- 30e3 # Young's Modulus (ksi)
 
-# sigy # ksi - YS
-sig_u <- 1.49 * sigy # ksi - UTS
+# sig_y # ksi - YS
+sig_u <- 1.49 * sig_y # ksi - UTS
 # UTS ~ 1.49* YS on average if unknown
 
-n_sh <- 0.537 - 0.526 * sigy / sig_u
+n_sh <- 0.537 - 0.526 * sig_y / sig_u
 # fit equation to strain hardening data
 # Do not use the equation given in the paper,
 # horrible fit to data and only based on 4 data points
 
 # n <- 0.167 # from testing data if available
 
-a <- 0.31 # crack depth (in.)
+a <- 0.1 # crack depth (in.)
 
-Lc <- 10 # crack length (in.)
+Lc <- 12 # crack length (in.)
 
 # a/Lc # depth/Length ratio
 
@@ -81,7 +81,7 @@ at <- a / t # depth to wt ratio
 
 # Charpy Data ------------------------------
 
-CVN_ss <- 5 #Sub Size Charpy Energy (Ft-lbs)
+CVN_ss <- 10 #Sub Size Charpy Energy (Ft-lbs)
 
 t_ss_mm <- 10 # Sub size charpy thickness in mm
 
@@ -386,7 +386,7 @@ lifetxt <- paste("Total fatigue life =",format(life,big.mark = ","), "years")
 `r paste("Diameter =",D)`\
 `r paste("Wall Thickness =", t)`\
 `r paste("Initial Crack Depth =", ai)`\
-`r paste("SMYS =", sigy, "ksi")`\
+`r paste("SMYS =", sig_y, "ksi")`\
 `r paste("Total cycles per year =", nrow(cyclecount))`\
 `r paste("Fractional fatigue life consumed each year =",round(frac,8))`\
 `r lifetxt`\
@@ -1005,7 +1005,7 @@ Nominal Wall Thickness:\
 $t =$ `r paste(t, "in.")`
 
 Yield Stress:\
-$\sigma_y =$ `r paste(sigy, "ksi")`
+$\sigma_y =$ `r paste(sig_y, "ksi")`
 
 Ultimate Tensile Strength:\
 $\sigma_u =$ `r paste(sig_u, "ksi")`
@@ -1029,7 +1029,7 @@ $CVN_{fs} =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")`
 ```{r Corlas}
 
 # Corlas Functions ---------
-# n_sh <- -0.00546+0.556*(sigy/sig_u)-0.547*(sigy/sig_u)^2
+# n_sh <- -0.00546+0.556*(sig_y/sig_u)-0.547*(sig_y/sig_u)^2
 # n_sh
 
 # Free surface factor -----------------------------------------------------
@@ -1055,10 +1055,10 @@ f_3 <-  (3.85 * sqrt (1 / n_sh) * (1 - n_sh) + (pi * n_sh)) * (1 + n_sh) #f3(n) 
 # "Fully Plastic Solutions and Large Scale Yielding Estimates for Plane
 # Stress Crack Problems," Report No. DEAP S-14, Harvard University, Cambridge, MA.
 
-eps_y <- 0.005 - sigy / E # plastic strain @ 0.5% strain
+eps_y <- 0.005 - sig_y / E # plastic strain @ 0.5% strain
 
 # Power Law coefficient ---------------------------------------
-Ks <- sigy / (0.005 - sigy / E) ^ n_sh # eq(14) in IPC paper
+Ks <- sig_y / (0.005 - sig_y / E) ^ n_sh # eq(14) in IPC paper
 # This relates the plastic strain at an arbitrary stress
 # epsilon_p = (S/K_s)^1/n eq(15): IPC paper use eq(15)in J calc in replace of
 # The plastic strain variable since it is dependent on S
@@ -1081,11 +1081,11 @@ J1c <- 10e-3 * CVN_us_fs # Critical toughness (ksi/in^0.5)
 # uniroot function assumes equation is equal to zero to find root
 
 J <-  function(S) {
-  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * (S / Ks) ^ (1 / n_sh)  * S) - J1c
+  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * (S / Ks) ^ (1 / n_sh) * S) - J1c
 }
 
  # Failure stress based on J integral
-S1 <- uniroot(J,c(1,sigy), extendInt = "no")$root
+S1 <- uniroot(J,c(1,sig_y), extendInt = "no")$root
 
 # keep just the root solution (ksi)
 # failure stress for J-integral, finds the root when J1c = J, solves for
@@ -1104,9 +1104,9 @@ M_T <- ifelse(Lc ^ 2  / (D * t) > 50, M_T2, M_T1)
 
 
 # Flow stress -------------------------------------------------------------
-sig_f1 <- sigy + 10 # ksi
+sig_f1 <- sig_y + 10 # ksi
 
-sig_f2 <- sigy + 0.5 * (sig_u - sigy)
+sig_f2 <- sig_y + 0.5 * (sig_u - sig_y)
 #ksi - Paper suggests that Cf = 0.5 is reasonable fit
 
 sig_flow <- min(sig_f1, sig_f2) #flow stress = min between the two
@@ -1159,7 +1159,7 @@ The overall predicted failure stress would therefore be:\
 $\sigma_{fail} =$ `r paste(round(fail,1),"ksi")`
 
 Failure stress as percent of SMYS:\
-$\% SMYS =$ `r paste(round(fail/sigy,3)*100,"%")`
+$\% SMYS =$ `r paste(round(fail/sig_y,3)*100,"%")`
 
 Predicted failure pressure:\
 $P_{fail} =$ `r paste(floor(2e3*fail*t/D), "psig")`

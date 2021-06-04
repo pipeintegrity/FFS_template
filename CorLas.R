@@ -5,7 +5,7 @@ library(dplyr)
 
 E =30e3 # Young's Modulus (ksi)
 
-sig_y <- 52 # ksi - YS
+sig_y <- 46 # ksi - YS
 sig_u <- 1.49*sig_y # ksi - UTS
 # UTS ~ 1.49* YS on average if unknown
 
@@ -14,15 +14,15 @@ n <- 0.537 - 0.526 * sig_y / sig_u
 # Do not use the equation given in the paper,
 # horrible fit to data and only based on 4 data points
 
-D <- 10 # Diameter (in.)
+D <- 24 # Diameter (in.)
 
 R <- D/2 # Radius (in.)
 
 # n <- 0.167 # from testing data if available
 
-a <- 0.10 # crack depth (in.)
+a <- 0.250 # crack depth (in.)
 
-L <- 12 # crack length (in.)
+L <- 10 # crack length (in.)
 
 a/L # depth/Length ratio
 
@@ -34,17 +34,22 @@ at <- a/t # depth to wt ratio
 
 # Charpy Data -------------------------------------------------------------
 
-CVN_ss <- 10 #Sub Size Charpy Energy (Ft-lbs)
 
-t_ss <- 10 # Sub size charpy thickness in mm
-t_fs <- 0.394 # Full size charpy in inches
-SA_ss <- 0.99 # Shear area in decimal percent
+CVN_ss <- 5 #Sub Size Charpy Energy (Ft-lbs)
 
+t_ss_mm <- 10 # Sub size charpy thickness in mm
 
-CVN_us_ss <- CVN_ss / (0.9 * SA_ss + 0.1) # CVN upper shelf sub size (ft-lbs)
+t_ss_in <- t_ss_mm / 25.4 # convert t_ss from mm to inches
 
-CVN_us_fs <- CVN_us_ss * (t_fs / (t_ss / 25.4)) # CVN upper shelf full size (ft-lbs)
-# convert t_ss from mm to inches
+t_fs_in <- 0.394 # Full size charpy in inches
+
+SA_ss <- 0.9 # Shear area in decimal percent
+
+CVN_us_ss <- CVN_ss / (0.9 * SA_ss + 0.1)
+# CVN upper shelf sub size (ft-lbs)
+
+CVN_us_fs <- CVN_us_ss * (t_fs_in / t_ss_in)
+# CVN upper shelf full size (ft-lbs)
 
 
 # Free surface factor -----------------------------------------------------
@@ -79,7 +84,7 @@ Ks <- (sig_y / (0.005 - sig_y / E) ^ n) #eq(14) in IPC paper
 # A conservative lower-bound value for submerged arc welds
 # in many structural and low-alloy steels is 500 in-lb/in2
 
-J1c <- 10e-3* CVN_us_fs #Critical toughness (in-Klb/in2)
+J1c <- 10e-3 * CVN_us_fs#Critical toughness (in-Klb/in2)
 # converted to Kips so units are consistent with YS, etc.
 # Other correlations suggested are 12CVN/Ac (Ac = area of FS charpy 0.124 in^2)
 
@@ -90,11 +95,11 @@ J1c #print the J1c
 # uniroot function assumes equation is equal to zero to find root
 
 J <-  function(S) {
-  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * n * (S / Ks) ^ (1 / n)  * S) - J1c
+  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * (S / Ks) ^ (1 / n)  * S) - J1c
 }
 
  # Failure stress based on J integral
-S1 <- uniroot(J,c(1,100), extendInt = "yes")$root
+S1 <- uniroot(J,c(1,sig_y), extendInt = "no")$root
 S1
 # keep just the root solution (ksi)
 # failure stress for J-integral, finds the root when J1c = J, solves for
@@ -133,16 +138,40 @@ paste("The failure Pressure is ",round(fail,1)) # print failure pressure
 
 #Quick plot to show J vs. Sigma
 
-x <- 1:100
+x <- 1:50
 
 eps_p <- (S1 / Ks) ^ (1 / n)
 
-J_x <- 1:100 %>%
-  map_dbl(~ Q_f * F_s * (.x ^ 2 * pi * a / E + f_3 * n * a * eps_p * .x))
+J_x <- 1:50 %>%
+  map_dbl( ~ Q_f * F_s * a * (.x ^ 2 * pi / E + f_3 * (.x / Ks) ^ (1 / n) * .x))
 
 j_df <- bind_cols(x= x, J =J_x) #bind into single data frame
 
 #Quick plot
-plot(J ~ x , j_df, main = "J vs. Sigma", xlab = "Sigma", type="l", lwd=2, col='red')
+plot(
+  J ~ x ,
+  j_df,
+  main = "J vs. Sigma",
+  xlab = "Sigma",
+  type = "l",
+  lwd = 2,
+  col = 'red'
+)
 
-fail/sig_y
+F_s
+Q_f
+S1
+f_3
+J1c
+Ks
+
+j_df %>%
+  ggplot(aes(x, J))+
+  geom_line(col='red', lwd=1)+
+  theme_minimal(14)+
+  scale_y_continuous(breaks = seq(0,1.4, length.out=15), limits = c(0,0.4))+
+  xlim(0,40)+
+  labs(title = "J vs. Sigma",
+       x = "Sigma (ksi)",
+       y = "J (1,000 lb/in)")+
+  theme(plot.margin = margin(0.6,0.6,0.6,0.6,"cm"))
