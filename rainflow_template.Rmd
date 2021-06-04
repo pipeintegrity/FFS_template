@@ -68,9 +68,9 @@ n_sh <- 0.537 - 0.526 * sigy / sig_u
 
 # n <- 0.167 # from testing data if available
 
-a <- 0.25 # crack depth (in.)
+a <- 0.31 # crack depth (in.)
 
-Lc <- 5 # crack length (in.)
+Lc <- 10 # crack length (in.)
 
 # a/Lc # depth/Length ratio
 
@@ -938,7 +938,9 @@ $$
 \begin{aligned}
 &J_t = Q_fF_{sf}a\left[\frac{\sigma^2\pi}{E}+f_3\epsilon_p\sigma\right]
 \end{aligned}  
-$$ Where:
+$$ 
+  
+Where:
 
 ### Shape Factor
 
@@ -967,9 +969,13 @@ $$
 
 ### Shih-Hutchinson Equation
 
-The $f_3$ factor is given as the following equation. [^3] $$
+The $f_3$ factor is given as the following equation. [^3] 
+
+$$
 f_3(n) = \left[3.85\left(\frac{1}{n}\right)^{\frac{1}{2}}\left(1-n\right)+\pi n\right]\left(1+n\right)
-$$ If the J fracture toughness data is not available for the material
+$$ 
+
+If the J fracture toughness data is not available for the material
 under consideration, the critical fracture toughness can be estimated
 from the upper shelf Charpy V-Notch (CVN) values. Some empirical
 relationships developed include the following.
@@ -1004,10 +1010,10 @@ $\sigma_y =$ `r paste(sigy, "ksi")`
 Ultimate Tensile Strength:\
 $\sigma_u =$ `r paste(sig_u, "ksi")`
 
-Crack depth:\
+Crack Depth:\
 $a =$ `r paste(a, "in.")`
 
-Crack length:  
+Crack Length:  
 $L =$ `r paste(Lc,"in.")`  
   
 Sub-Size Charpy Energy:\
@@ -1019,9 +1025,12 @@ $SA_{ss} =$ `r paste0(SA_ss * 100,"%")`
 Full-Size Upper Shelf Equivalent Charpy\
 $CVN_{fs} =$ `r paste(round(CVN_us_fs,1), "Ft-lbs")`
 
+
 ```{r Corlas}
 
 # Corlas Functions ---------
+# n_sh <- -0.00546+0.556*(sigy/sig_u)-0.547*(sigy/sig_u)^2
+# n_sh
 
 # Free surface factor -----------------------------------------------------
 
@@ -1040,6 +1049,7 @@ Q_f <-
   1.2581 - 0.20589 * (a / (2 * c_l)) - 11.493 * (a / (2 * c_l)) ^ 2 + 29.586 *
   (a / (2 * c_l)) ^ 3 - 23.584 * (a / (2 * c_l)) ^ 4 #elliptical shape factor
 
+# Shih and Hutchinson factor ---------------------------------------------
 f_3 <-  (3.85 * sqrt (1 / n_sh) * (1 - n_sh) + (pi * n_sh)) * (1 + n_sh) #f3(n) factor
 # Shih and Hutchinson equation from Shih, C.F. and Hutchinson, J.W., 1975,
 # "Fully Plastic Solutions and Large Scale Yielding Estimates for Plane
@@ -1047,8 +1057,8 @@ f_3 <-  (3.85 * sqrt (1 / n_sh) * (1 - n_sh) + (pi * n_sh)) * (1 + n_sh) #f3(n) 
 
 eps_y <- 0.005 - sigy / E # plastic strain @ 0.5% strain
 
-# Material Strength Factor
-Ks <- (sigy / (0.005 - sigy / E) ^ n_sh) # eq(14) in IPC paper
+# Power Law coefficient ---------------------------------------
+Ks <- sigy / (0.005 - sigy / E) ^ n_sh # eq(14) in IPC paper
 # This relates the plastic strain at an arbitrary stress
 # epsilon_p = (S/K_s)^1/n eq(15): IPC paper use eq(15)in J calc in replace of
 # The plastic strain variable since it is dependent on S
@@ -1058,7 +1068,7 @@ Ks <- (sigy / (0.005 - sigy / E) ^ n_sh) # eq(14) in IPC paper
 # A conservative lower-bound value for submerged arc welds
 # in many structural and low-alloy steels is 500 in-lb/in2
 
-J1c <- 10e-3 * CVN_us_fs #Critical toughness (ksi/in^0.5)
+J1c <- 10e-3 * CVN_us_fs # Critical toughness (ksi/in^0.5)
 # converted to Kips so units are consistent with YS, etc.
 # Other correlations suggested are 
 # J1c <- 12e-3*CVN_us_fs/0.124
@@ -1071,11 +1081,12 @@ J1c <- 10e-3 * CVN_us_fs #Critical toughness (ksi/in^0.5)
 # uniroot function assumes equation is equal to zero to find root
 
 J <-  function(S) {
-  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * n_sh * (S / Ks) ^ (1 / n_sh)  * S) - J1c
+  Q_f * F_s * a * (S ^ 2 * pi  / E + f_3 * (S / Ks) ^ (1 / n_sh)  * S) - J1c
 }
 
  # Failure stress based on J integral
-S1 <- uniroot(J,c(1,100), extendInt = "yes")$root
+S1 <- uniroot(J,c(1,sigy), extendInt = "no")$root
+
 # keep just the root solution (ksi)
 # failure stress for J-integral, finds the root when J1c = J, solves for
 # stress, wider search intervals don't effect the time to find root is of no
@@ -1100,7 +1111,7 @@ sig_f2 <- sigy + 0.5 * (sig_u - sigy)
 
 sig_flow <- min(sig_f1, sig_f2) #flow stress = min between the two
 
-S2 <- sig_flow * ((1 - Lc * a / (Lc * t)) / (1 - Lc * a / (M_T * Lc * t)))
+S2 <- sig_flow * ((1 -  a / t) / (1 - a / (M_T  * t)))
 # failure pressure based on effective area and folias factor
 
 # S1 # print S1 as a check
@@ -1144,7 +1155,7 @@ $\sigma_{EA} =$ `r paste(round(S2,1),"ksi")`
 The fracture toughness failure stress is:\
 $\sigma_{FT} =$ `r paste(round(S1,1),"ksi")`
 
-The Overall Predicted failure stress would therefore be:\
+The overall predicted failure stress would therefore be:\
 $\sigma_{fail} =$ `r paste(round(fail,1),"ksi")`
 
 Failure stress as percent of SMYS:\
